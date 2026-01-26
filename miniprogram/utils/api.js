@@ -25,7 +25,7 @@ const request = (url, method, data, timeout = 60000) => {
 };
 
 const api = {
-  chat: (userId, content) => request('/chat', 'POST', { user_id: userId, content: content }),
+  chat: (userId, content, mode = 'concise') => request('/chat', 'POST', { user_id: userId, content: content, mode: mode }),
   generateCard: (userId) => request('/generate_card', 'POST', { user_id: userId }, 120000), // 生成卡片可能较慢，设置 120秒超时
   logError: (message, context = {}) => {
     // Fire and forget log request

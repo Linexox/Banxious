@@ -7,11 +7,23 @@ Page({
       { role: 'assistant', content: '嗨！我是 Mood Lab 的研究员。这里很安全，你可以告诉我任何让你感到“蕉绿”的事情。' }
     ],
     userId: 'test_user_' + Date.now(), // 简单的用户ID生成
-    loading: false
+    loading: false,
+    mode: 'concise' // 'concise' | 'professional'
   },
 
   onLoad() {
 
+  },
+
+  onModeChange(e) {
+    const mode = e.currentTarget.dataset.mode;
+    if (mode === this.data.mode) return;
+    
+    this.setData({ mode });
+    wx.showToast({
+      title: mode === 'professional' ? '已切换至专业模式' : '已切换至简洁模式',
+      icon: 'none'
+    });
   },
 
   async onSend(e) {
@@ -25,7 +37,7 @@ Page({
     });
 
     try {
-      const res = await api.chat(this.data.userId, content);
+      const res = await api.chat(this.data.userId, content, this.data.mode);
 
       let aiContent = '';
       if (res.choices && res.choices.length > 0) {

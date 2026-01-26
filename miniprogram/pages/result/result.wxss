@@ -110,7 +110,7 @@ page {
 }
 
 .card-header {
-  text-align: right;
+  /* text-align: right; Overridden in wxml */
 }
 
 .tag {
@@ -122,6 +122,21 @@ page {
   font-size: 28rpx;
 }
 
+.toggle-btn {
+  font-size: 24rpx;
+  color: #1B262C;
+  background-color: rgba(0, 255, 204, 0.3);
+  padding: 10rpx 24rpx;
+  border-radius: 30rpx;
+  border: 1rpx solid #00FFCC;
+  font-weight: bold;
+}
+
+.toggle-btn:active {
+  background-color: #00FFCC;
+  color: #fff;
+}
+
 .card-body {
   flex: 1;
   display: flex;
@@ -129,6 +144,9 @@ page {
   justify-content: center;
   align-items: center;
   /* 居中内容 */
+  overflow: hidden;
+  /* Ensure scroll view works */
+  margin: 20rpx 0;
 }
 
 /* Front Content */
@@ -165,6 +183,21 @@ page {
   color: #00FFCC;
   margin-right: 15rpx;
   font-weight: bold;
+}
+
+.analysis-scroll {
+  width: 100%;
+  height: 100%;
+}
+
+.analysis-text {
+  font-size: 28rpx;
+  color: #444;
+  line-height: 1.8;
+  text-align: justify;
+  display: block;
+  padding-right: 10rpx;
+  /* Avoid scrollbar overlap if any */
 }
 
 .card-footer {

@@ -7,6 +7,7 @@ Page({
     loading: true,
     destroyed: false,
     isFlipped: false,
+    showProfessionalAnalysis: false,
     errorMsg: ''
   },
 
@@ -110,6 +111,14 @@ Page({
     if (this.data.destroyed) return;
     this.setData({
       isFlipped: !this.data.isFlipped
+    });
+  },
+
+  onToggleAnalysis(e) {
+    // Prevent event bubbling to avoid flipping the card
+    // Note: catchtap is used in wxml, but good to be aware
+    this.setData({
+      showProfessionalAnalysis: !this.data.showProfessionalAnalysis
     });
   },
 

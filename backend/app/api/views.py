@@ -87,6 +87,7 @@ async def chat(
     background_tasks: BackgroundTasks,
     user_id: str = Body(..., embed=True),
     content: str = Body(..., embed=True),
+    mode: str = Body("concise", embed=True),
     thinking_enabled: bool = Body(False, embed=True)
 ):
     """
@@ -100,8 +101,12 @@ async def chat(
         knowledge = psychology_knowledge.search(content)
         
         # 3. Build Messages
-        # Start with System Prompt
-        system_prompt = PromptTemplates.STANDARD_SYSTEM_PROMPT
+        # Start with System Prompt based on mode
+        if mode == "professional":
+            system_prompt = PromptTemplates.PROFESSIONAL_SYSTEM_PROMPT
+        else:
+            system_prompt = PromptTemplates.STANDARD_SYSTEM_PROMPT
+            
         if knowledge:
             system_prompt += f"\n\n相关心理学知识库：\n{knowledge}"
             

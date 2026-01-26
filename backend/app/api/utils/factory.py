@@ -1,5 +1,6 @@
 from app.api.utils.llm_interface import LLMClient
 from app.api.utils.zhipu_client import ZhipuClient
+from app.api.utils.deepseek_client import DeepSeekClient
 from config.settings import settings
 
 def get_llm_client() -> LLMClient:
@@ -8,9 +9,8 @@ def get_llm_client() -> LLMClient:
     """
     if settings.LLM_PROVIDER == "zhipu":
         return ZhipuClient()
-    # Future providers can be added here
-    # elif settings.LLM_PROVIDER == "deepseek":
-    #     return DeepSeekClient()
+    elif settings.LLM_PROVIDER == "deepseek":
+        return DeepSeekClient()
     else:
         # Default fallback or error
         raise ValueError(f"Unsupported LLM provider: {settings.LLM_PROVIDER}")

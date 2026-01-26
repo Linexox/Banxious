@@ -30,11 +30,16 @@
 
       <!-- 反面 -->
       <view class="card card-back">
-        <view class="card-header">
-          <text class="tag">Mood Lab 建议</text>
+        <view class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <view class="toggle-btn" catchtap="onToggleAnalysis">
+            <text>{{showProfessionalAnalysis ? '返回简略' : '深度分析'}}</text>
+          </view>
+          <text class="tag">{{showProfessionalAnalysis ? '专业解读' : 'Mood Lab 建议'}}</text>
         </view>
+        
         <view class="card-body">
-          <view class="suggestion-list">
+          <!-- 简略建议 -->
+          <view class="suggestion-list" wx:if="{{!showProfessionalAnalysis}}">
             <block wx:for="{{cardData.suggestions}}" wx:key="index">
               <view class="suggestion-item">
                 <text class="bullet">•</text>
@@ -42,7 +47,13 @@
               </view>
             </block>
           </view>
+          
+          <!-- 深度分析 -->
+          <scroll-view wx:else scroll-y class="analysis-scroll">
+            <text class="analysis-text" user-select>{{cardData.professional_analysis || '暂无深度分析内容。请尝试使用专业模式对话后生成。'}}</text>
+          </scroll-view>
         </view>
+
         <view class="card-footer">
           <text class="quote">“{{cardData.healing_quote}}”</text>
         </view>

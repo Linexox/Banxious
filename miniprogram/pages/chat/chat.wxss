@@ -8,6 +8,31 @@ page {
   height: 100vh;
 }
 
+.mode-switch {
+  display: flex;
+  justify-content: center;
+  padding: 20rpx;
+  background-color: #FFFDF5;
+  z-index: 99;
+}
+
+.mode-btn {
+  padding: 10rpx 30rpx;
+  margin: 0 10rpx;
+  border-radius: 30rpx;
+  font-size: 26rpx;
+  color: #666;
+  background-color: #eee;
+  transition: all 0.3s;
+}
+
+.mode-btn.active {
+  background-color: #F8E71C;
+  color: #333;
+  font-weight: bold;
+  box-shadow: 0 2rpx 10rpx rgba(248, 231, 28, 0.3);
+}
+
 .chat-list {
   flex: 1;
   padding: 20rpx;
@@ -36,7 +61,7 @@ page {
   position: fixed;
   top: 20rpx;
   right: 20rpx;
-  background-color: #F8E71C;
+  background-color: #00FFCC; /* Use a different color to distinguish */
   padding: 10rpx 20rpx;
   border-radius: 30rpx;
   font-size: 24rpx;
