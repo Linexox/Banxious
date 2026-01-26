@@ -15,6 +15,13 @@ class Conversation(Base):
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+class CardCache(Base):
+    __tablename__ = 'card_cache'
+
+    user_id = Column(String, primary_key=True, index=True)
+    card_json = Column(Text)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
 # SQLite database
 DATABASE_URL = "sqlite:///./greenbanana.db"
 
@@ -32,6 +39,27 @@ def save_message(user_id: str, role: str, content: str):
         db.commit()
         db.refresh(conversation)
         return conversation
+    finally:
+        db.close()
+
+def save_card_cache(user_id: str, card_json: str):
+    db = SessionLocal()
+    try:
+        cache = db.query(CardCache).filter(CardCache.user_id == user_id).first()
+        if not cache:
+            cache = CardCache(user_id=user_id, card_json=card_json)
+            db.add(cache)
+        else:
+            cache.card_json = card_json
+        db.commit()
+    finally:
+        db.close()
+
+def get_card_cache(user_id: str):
+    db = SessionLocal()
+    try:
+        cache = db.query(CardCache).filter(CardCache.user_id == user_id).first()
+        return cache.card_json if cache else None
     finally:
         db.close()
 
