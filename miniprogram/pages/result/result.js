@@ -227,128 +227,194 @@ Page({
   // Animation Implementations
   // -------------------------------------------------------------------------
 
-  // 🔥 燃烧 (自底而上，化为灰烬)
+  // 🔥 燃烧 (随机火星扩散 + 边缘粒子 + 灰烬)
   runBurnAnimation(rect) {
-    const DURATION = 3000;
     const ctx = this.animationCtx;
     const canvas = this.animationCanvas;
+    // Logical dimensions
     const width = canvas.width / this.dpr;
     const height = canvas.height / this.dpr;
 
-    const cardX = rect.left;
-    const cardY = rect.top;
-    const cardW = rect.width;
-    const cardH = rect.height;
+    const { left: cardX, top: cardY, width: cardW, height: cardH } = rect;
 
-    // 重新生成一张图用于每一帧绘制 (因为我们要 clearRect)
+    // 1. Snapshot of the card
     const cardImage = this.createCardImage(cardW, cardH);
 
-    let startTime = Date.now();
-    const particles = [];
-    const burnHoles = [];
+    // 2. State Initialization
+    let holes = []; // {x, y, r, growthRate}
+    let particles = []; // {x, y, vx, vy, life, size, color, type}
 
-    // 初始燃烧点
-    for (let i = 0; i < 4; i++) {
-      burnHoles.push({
-        x: Math.random() * cardW,
-        y: cardH * 0.9 + Math.random() * (cardH * 0.1),
-        r: 0,
-        speed: 0.3 + Math.random() * 0.4
-      });
-    }
+    // Initial Ignition
+    const spawnHole = () => ({
+      x: Math.random() * cardW,
+      y: Math.random() * cardH,
+      r: 0,
+      growth: 0.3 + Math.random() * 0.5
+    });
+
+    const initialPoints = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < initialPoints; i++) holes.push(spawnHole());
+
+    let startTime = Date.now();
+    const MAX_DURATION = 4000;
+    const FADE_OUT_DURATION = 500;
 
     const animate = () => {
       const now = Date.now();
       const elapsed = now - startTime;
-      const progress = Math.min(elapsed / DURATION, 1);
+      const isBurning = elapsed < MAX_DURATION;
 
+      // Clear
       ctx.clearRect(0, 0, width, height);
 
+      // --- Logic Update ---
+      if (isBurning) {
+        // Grow holes
+        holes.forEach(h => {
+          h.r += h.growth + (Math.random() - 0.2) * 0.5;
+        });
+
+        // Spawn new holes
+        if (elapsed < 3000 && Math.random() < 0.05) holes.push(spawnHole());
+
+        // Spawn Particles
+        holes.forEach(h => this.spawnParticles(h, cardW, cardH, cardX, cardY, particles));
+      }
+
+      // Update Particles
+      this.updateParticles(particles, isBurning, now);
+
+      // --- Drawing ---
       ctx.save();
       ctx.translate(cardX, cardY);
 
-      // 1. 绘制被烧了一部分的卡片
-      // 使用 destination-out 来挖洞
-      // 但 Canvas 没有图层组的概念，直接 destination-out 会把整个 canvas 擦除
-      // 解决方案：先在一个离屏 canvas 上画卡片 + 挖洞，然后画到主 canvas
+      // Fade out card residue
+      let cardAlpha = isBurning ? 1 : Math.max(0, 1 - (elapsed - MAX_DURATION) / FADE_OUT_DURATION);
 
-      // 简易方案：先画卡片，再用 destination-out 画黑洞 (背景是透明的，所以会变成透明)
-      // 注意：这会把背景也擦掉，如果 Canvas 下面有东西的话。这里 Canvas 下面是背景色，所以会露出背景色。
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.drawImage(cardImage, 0, 0, cardW, cardH);
+      if (cardAlpha > 0) {
+        ctx.globalAlpha = cardAlpha;
 
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillStyle = 'rgba(0,0,0,1)';
+        // Layer 1: Card
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(cardImage, 0, 0, cardW, cardH);
 
-      burnHoles.forEach(hole => {
-        const currentR = hole.r + (elapsed * 0.2 * hole.speed);
-        ctx.beginPath();
-        ctx.arc(hole.x, hole.y, currentR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 产生粒子逻辑 (略微简化以保证性能)
-        if (progress < 1.0 && Math.random() < 0.3) {
-          const angle = Math.random() * Math.PI * 2;
-          const px = hole.x + Math.cos(angle) * currentR;
-          const py = hole.y + Math.sin(angle) * currentR;
-          // 转为全局坐标添加粒子
-          particles.push({
-            type: 'fire',
-            x: px + cardX,
-            y: py + cardY,
-            vx: (Math.random() - 0.5) * 1,
-            vy: -Math.random() * 3,
-            size: Math.random() * 6 + 3,
-            life: 0.8,
-            colorR: 255, colorG: Math.floor(Math.random() * 200), colorB: 0
-          });
-        }
-      });
-
-      ctx.restore();
-
-      // 2. 绘制粒子 (在全局坐标系)
-      ctx.globalCompositeOperation = 'source-over'; // 恢复正常混合模式
-
-      // 绘制粒子逻辑...
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.life -= 0.03;
-        if (p.life <= 0) {
-          particles.splice(i, 1);
-          continue;
-        }
-
-        p.x += p.vx;
-        p.y += p.vy;
-
-        if (p.type === 'fire') {
-          p.size *= 0.92;
-          ctx.fillStyle = `rgba(${p.colorR}, ${p.colorG}, ${p.colorB}, ${p.life})`;
+        // Layer 2: Glowing Edge (source-atop)
+        ctx.globalCompositeOperation = 'source-atop';
+        holes.forEach(h => {
+          if (h.r <= 0) return;
+          const g = ctx.createRadialGradient(h.x, h.y, h.r, h.x, h.y, h.r + 30);
+          g.addColorStop(0, 'rgba(255, 100, 0, 0.9)');
+          g.addColorStop(0.3, 'rgba(100, 20, 0, 0.8)');
+          g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = g;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.arc(h.x, h.y, h.r + 30, 0, Math.PI * 2);
           ctx.fill();
-        }
-      }
+        });
 
-      // 动态添加新的燃烧点
-      if (Math.random() < 0.05 && progress < 0.8) {
-        const parent = burnHoles[Math.floor(Math.random() * burnHoles.length)];
-        burnHoles.push({
-          x: parent.x + (Math.random() - 0.5) * 100,
-          y: parent.y + (Math.random() - 0.5) * 100,
-          r: 0,
-          speed: 0.3 + Math.random() * 0.3
+        // Layer 3: Cut holes (destination-out)
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.globalAlpha = 1; // Force full transparency for the cut
+        ctx.fillStyle = 'black';
+        holes.forEach(h => {
+          if (h.r <= 0) return;
+          ctx.beginPath();
+          ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+          ctx.fill();
         });
       }
 
-      if (progress < 1.0 || particles.length > 0) {
+      ctx.restore();
+
+      // Layer 4: Particles
+      this.drawParticles(ctx, particles);
+
+      // Loop or Finish
+      const hardStop = elapsed > (MAX_DURATION + FADE_OUT_DURATION + 1000);
+      if (!hardStop && (isBurning || particles.length > 0 || cardAlpha > 0)) {
         canvas.requestAnimationFrame(animate);
       } else {
         this.finishDestroy();
       }
     };
     animate();
+  },
+
+  spawnParticles(hole, cardW, cardH, cardX, cardY, particles) {
+    const circumference = 2 * Math.PI * hole.r;
+    if (Math.random() >= 0.4) return;
+
+    const count = Math.ceil(circumference / 50);
+    for (let k = 0; k < count; k++) {
+      if (Math.random() > 0.2) continue;
+
+      const angle = Math.random() * Math.PI * 2;
+      const edgeX = hole.x + Math.cos(angle) * hole.r;
+      const edgeY = hole.y + Math.sin(angle) * hole.r;
+
+      if (edgeX > -10 && edgeX < cardW + 10 && edgeY > -10 && edgeY < cardH + 10) {
+        const pX = cardX + edgeX;
+        const pY = cardY + edgeY;
+
+        particles.push({
+          type: 'spark',
+          x: pX, y: pY,
+          vx: (Math.random() - 0.5) * 2,
+          vy: -1 - Math.random() * 3,
+          life: 0.5 + Math.random() * 0.5,
+          size: 1 + Math.random() * 3,
+          color: `255, ${Math.floor(Math.random() * 200)}, 0`
+        });
+
+        if (Math.random() < 0.2) {
+          particles.push({
+            type: 'ash',
+            x: pX, y: pY,
+            vx: (Math.random() - 0.5) * 1,
+            vy: -0.5 - Math.random() * 1.5,
+            life: 1.0 + Math.random(),
+            size: 2 + Math.random() * 2,
+            color: '80, 80, 80'
+          });
+        }
+      }
+    }
+  },
+
+  updateParticles(particles, isBurning, now) {
+    const decay = isBurning ? 0.02 : 0.05;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      let p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= decay;
+
+      if (p.type === 'spark') {
+        p.vy *= 0.95; p.size *= 0.95;
+      } else if (p.type === 'ash') {
+        p.x += Math.sin(now / 200 + p.y * 0.01) * 0.5;
+        p.alpha = p.life;
+      }
+      if (p.life <= 0 || p.size <= 0.1) particles.splice(i, 1);
+    }
+  },
+
+  drawParticles(ctx, particles) {
+    ctx.globalCompositeOperation = 'source-over';
+    particles.forEach(p => {
+      const alpha = Math.max(0, p.life);
+      ctx.fillStyle = `rgba(${p.color}, ${alpha})`;
+      if (p.type === 'spark') {
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = `rgba(${p.color}, ${alpha})`;
+      } else {
+        ctx.shadowBlur = 0;
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.shadowBlur = 0;
   },
 
   // ✂️ 撕碎 (碎纸机效果)
@@ -522,26 +588,29 @@ Page({
 
   // 绘制卡片内容到离屏 Canvas (高度还原 CSS 样式)
   createCardImage(width, height) {
-    // 使用离屏 Canvas 或 临时 Canvas
     const offscreen = wx.createOffscreenCanvas({ type: '2d', width: width, height: height });
     const ctx = offscreen.getContext('2d');
 
-    // 确保比例正确
-    // CSS: border 4rpx solid #00FFCC
-    // 假设 750rpx 设计稿，width 对应实际 px
-    const scale = width / 300; // 粗略基准
+    // 1. 计算 rpx 转换比例
+    // CSS 中 .card-container width: 80%
+    // width (px) = windowWidth * 0.8
+    // 1rpx = windowWidth / 750
+    // => 1rpx = (width / 0.8) / 750 px
+    const rpx = (val) => val * (width / 0.8 / 750);
 
-    const borderW = 2;
-    const radius = 10;
-    const padding = 20;
+    const borderW = rpx(4);
+    const radius = rpx(20);
+    const padding = rpx(40);
 
-    // 1. 背景
-    ctx.fillStyle = '#FFFFFF';
-    // 阴影无法在离屏 canvas 完美呈现，通常作为纹理时不需要阴影，阴影由主 Canvas 控制或忽略
+    // 2. 绘制卡片容器 (背景 & 边框)
+    // 根据翻转状态设置背景色
+    ctx.fillStyle = this.data.isFlipped ? '#F0FFF0' : '#FFFFFF';
+
+    // 绘制圆角矩形背景
     this.drawRoundRect(ctx, 0, 0, width, height, radius);
     ctx.fill();
 
-    // 2. 边框
+    // 绘制边框
     ctx.strokeStyle = '#00FFCC';
     ctx.lineWidth = borderW;
     this.drawRoundRect(ctx, 0, 0, width, height, radius);
@@ -549,121 +618,250 @@ Page({
 
     const cardData = this.data.cardData || {};
 
-    // 根据翻转状态绘制
+    // 3. 绘制内容
     if (this.data.isFlipped) {
-      // --- 背面 ---
-      const tagText = "Mood Lab 建议";
-      ctx.font = `bold ${14 * scale}px sans-serif`;
-      const tagMetrics = ctx.measureText(tagText);
-      const tagH = 24 * scale;
-      const tagW = tagMetrics.width + 20 * scale;
+      // ==================== 背面 (Back) ====================
 
-      // Tag
+      // --- Header Area ---
+      // Flex: space-between. Left: Toggle Btn, Right: Tag
+      const headerY = padding;
+
+      // Fixed Heights based on WXSS font + padding
+      // Tag: 28rpx font + 10rpx top + 10rpx bottom = 48rpx
+      const tagH = rpx(48);
+      // Toggle: 24rpx font + 10rpx top + 10rpx bottom = 44rpx
+      const toggleH = rpx(44);
+
+      // Max header height for layout
+      const headerHeight = Math.max(tagH, toggleH);
+
+      // 1. Toggle Button (Left)
+      // WXSS: padding: 10rpx 24rpx, border: 1rpx solid #00FFCC, radius: 30rpx
+      // Font: 24rpx bold #1B262C, BG: rgba(0, 255, 204, 0.3)
+      const toggleText = this.data.showProfessionalAnalysis ? '返回简略' : '深度分析';
+      ctx.font = `bold ${rpx(24)}px sans-serif`;
+      const toggleMetrics = ctx.measureText(toggleText);
+      const togglePaddingX = rpx(24);
+      const toggleW = toggleMetrics.width + togglePaddingX * 2;
+
+      // Center Toggle Button vertically relative to the tallest element (Tag)
+      const toggleY = headerY + (headerHeight - toggleH) / 2;
+
+      ctx.fillStyle = 'rgba(0, 255, 204, 0.3)';
+      // Radius should not exceed half height
+      this.drawRoundRect(ctx, padding, toggleY, toggleW, toggleH, toggleH / 2);
+      ctx.fill();
+      ctx.lineWidth = rpx(1);
+      ctx.strokeStyle = '#00FFCC';
+      ctx.stroke(); // border
+
+      ctx.fillStyle = '#1B262C';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Adjust text Y to be exactly center of button
+      ctx.fillText(toggleText, padding + toggleW / 2, toggleY + toggleH / 2);
+
+      // 2. Tag (Right)
+      // WXSS: padding: 10rpx 20rpx, BG: #00FFCC, radius: 10rpx
+      // Font: 28rpx bold #1B262C
+      const tagText = this.data.showProfessionalAnalysis ? '专业解读' : 'Mood Lab 建议';
+      ctx.font = `bold ${rpx(28)}px sans-serif`;
+      const tagMetrics = ctx.measureText(tagText);
+      const tagPaddingX = rpx(20);
+      const tagW = tagMetrics.width + tagPaddingX * 2;
+
+      // Align right
+      const tagX = width - padding - tagW;
+      // Center Tag vertically (though it is the tallest, so it's just headerY)
+      const tagY = headerY + (headerHeight - tagH) / 2;
+
       ctx.fillStyle = '#00FFCC';
-      this.drawRoundRect(ctx, width - padding - tagW, padding, tagW, tagH, 4);
+      this.drawRoundRect(ctx, tagX, tagY, tagW, tagH, rpx(10));
       ctx.fill();
 
       ctx.fillStyle = '#1B262C';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(tagText, width - padding - tagW + tagW / 2, padding + tagH / 2);
+      ctx.fillText(tagText, tagX + tagW / 2, tagY + tagH / 2);
 
-      // Suggestions
-      ctx.fillStyle = '#555555';
-      ctx.font = `${14 * scale}px sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
+      // --- Body Area ---
+      // margin: 20rpx 0
+      const bodyMarginTop = rpx(20);
+      const bodyY = headerY + headerHeight + bodyMarginTop;
+      const footerH = rpx(60); // Estimate footer height (quote area)
+      const bodyH = height - bodyY - footerH - padding; // Remaining height
 
-      let currentY = padding + tagH + 20 * scale;
-      const suggestions = cardData.suggestions || [];
+      // Save context for clipping
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(padding, bodyY, width - padding * 2, bodyH);
+      ctx.clip();
 
-      suggestions.forEach(item => {
-        ctx.fillStyle = '#00FFCC';
-        ctx.fillText('•', padding, currentY);
-        ctx.fillStyle = '#555555';
+      if (this.data.showProfessionalAnalysis) {
+        // --- Professional Analysis ---
+        // Font: 28rpx #444, line-height 1.8
+        const analysisText = cardData.professional_analysis || '暂无深度分析内容。';
+        ctx.font = `${rpx(28)}px sans-serif`;
+        ctx.fillStyle = '#444444';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
 
-        // 简易换行
-        const textX = padding + 15 * scale;
-        const maxW = width - textX - padding;
-        const words = String(item).split('');
-        let line = '';
-        for (let n = 0; n < words.length; n++) {
-          const testLine = line + words[n];
-          const metrics = ctx.measureText(testLine);
-          if (metrics.width > maxW && n > 0) {
-            ctx.fillText(line, textX, currentY);
-            line = words[n];
-            currentY += 18 * scale;
-          } else {
-            line = testLine;
-          }
+        const lineHeight = rpx(28) * 1.8;
+        this.wrapText(ctx, analysisText, padding, bodyY, width - padding * 2, lineHeight);
+
+      } else {
+        // --- Suggestion List ---
+        // CSS .card-body { justify-content: center; } -> Vertically centered
+
+        const suggestions = cardData.suggestions || [];
+        ctx.font = `${rpx(30)}px sans-serif`;
+        const lineHeight = rpx(30) * 1.5;
+        const itemSpacing = rpx(20);
+
+        // 1. Calculate total height first
+        let totalContentH = 0;
+        const suggestionsLayout = suggestions.map(item => {
+          const textX = padding + rpx(30);
+          const maxW = width - textX - padding;
+          const lines = this.getWrappedLines(ctx, item, maxW);
+          const h = lines.length * lineHeight;
+          totalContentH += h;
+          return { item, lines, h };
+        });
+
+        if (suggestions.length > 0) {
+          totalContentH += (suggestions.length - 1) * itemSpacing;
         }
-        ctx.fillText(line, textX, currentY);
-        currentY += 24 * scale;
-      });
+
+        // 2. Determine start Y for centering
+        // bodyY is the top of the body area
+        // bodyH is the height of the body area
+        let currentY = bodyY + (bodyH - totalContentH) / 2;
+
+        // Ensure we don't start above bodyY (if content is too long)
+        if (currentY < bodyY) currentY = bodyY;
+
+        // 3. Draw
+        suggestionsLayout.forEach((layout, index) => {
+          // Draw Bullet
+          ctx.fillStyle = '#00FFCC';
+          ctx.font = `bold ${rpx(30)}px sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText('•', padding, currentY);
+
+          // Draw Text
+          ctx.fillStyle = '#555555';
+          ctx.font = `${rpx(30)}px sans-serif`;
+
+          const textX = padding + rpx(30);
+
+          layout.lines.forEach(line => {
+            ctx.fillText(line, textX, currentY);
+            currentY += lineHeight;
+          });
+
+          if (index < suggestions.length - 1) {
+            currentY += itemSpacing;
+          }
+        });
+      }
+
+      ctx.restore();
 
     } else {
-      // --- 正面 ---
-      const tagText = cardData.mood_tag || '焦虑';
-      ctx.font = `bold ${14 * scale}px sans-serif`;
-      const tagMetrics = ctx.measureText(tagText);
-      const tagH = 24 * scale;
-      const tagW = tagMetrics.width + 20 * scale;
+      // ==================== 正面 (Front) ====================
 
-      // Tag
+      // 1. Tag (Top Right)
+      const tagText = cardData.mood_tag || '焦虑';
+      ctx.font = `bold ${rpx(28)}px sans-serif`;
+      const tagMetrics = ctx.measureText(tagText);
+      const tagPaddingX = rpx(20);
+      const tagPaddingY = rpx(10);
+      const tagW = tagMetrics.width + tagPaddingX * 2;
+      const tagH = rpx(28) + tagPaddingY * 2;
+
+      const tagX = width - padding - tagW;
+      const tagY = padding;
+
       ctx.fillStyle = '#00FFCC';
-      this.drawRoundRect(ctx, width - padding - tagW, padding, tagW, tagH, 4);
+      this.drawRoundRect(ctx, tagX, tagY, tagW, tagH, rpx(10));
       ctx.fill();
 
       ctx.fillStyle = '#1B262C';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(tagText, width - padding - tagW + tagW / 2, padding + tagH / 2);
+      ctx.fillText(tagText, tagX + tagW / 2, tagY + tagH / 2);
 
-      // Encouragement
+      // 2. Encouragement (Center)
+      // Font: 40rpx bold #333, line-height 1.4
+      const mainText = cardData.encouragement || '暂无内容';
+      ctx.font = `bold ${rpx(40)}px sans-serif`;
       ctx.fillStyle = '#333333';
-      ctx.font = `bold ${20 * scale}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const text = cardData.encouragement || '暂无内容';
-      // 简单换行处理
+      const lineHeight = rpx(40) * 1.4;
+      // Calculate total height of text to center it vertically
       const maxW = width - padding * 2;
-      const words = String(text).split('');
-      let line = '';
-      let lines = [];
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n];
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxW && n > 0) {
-          lines.push(line);
-          line = words[n];
-        } else {
-          line = testLine;
-        }
-      }
-      lines.push(line);
+      const lines = this.getWrappedLines(ctx, mainText, maxW);
+      const totalTextH = lines.length * lineHeight;
 
-      let textY = height / 2 - (lines.length - 1) * 15 * scale;
-      lines.forEach(l => {
-        ctx.fillText(l, width / 2, textY);
-        textY += 30 * scale;
+      let startY = (height - totalTextH) / 2;
+
+      lines.forEach(line => {
+        ctx.fillText(line, width / 2, startY + lineHeight / 2); // textBaseline middle
+        startY += lineHeight;
       });
 
-      // Hint
+      // 3. Hint (Below text)
+      // Font: 24rpx #999, margin-top 20rpx
+      ctx.font = `${rpx(24)}px sans-serif`;
       ctx.fillStyle = '#999999';
-      ctx.font = `${12 * scale}px sans-serif`;
-      ctx.fillText('👆 点击翻转查看建议', width / 2, textY + 10 * scale);
+      ctx.fillText('👆 点击翻转查看建议', width / 2, startY + rpx(20));
     }
 
-    // Footer Quote
+    // ==================== Footer (Common) ====================
+    // Font: 24rpx italic #999
     const quote = `“${cardData.healing_quote || ''}”`;
     ctx.fillStyle = '#999999';
-    ctx.font = `italic ${12 * scale}px sans-serif`;
+    ctx.font = `italic ${rpx(24)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillText(quote, width / 2, height - padding / 2);
 
     return offscreen;
+  },
+
+  // Helper: Wrap text and draw
+  // Returns the next Y position
+  wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const lines = this.getWrappedLines(ctx, text, maxWidth);
+    lines.forEach(line => {
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+    });
+    return y;
+  },
+
+  // Helper: Get lines array
+  getWrappedLines(ctx, text, maxWidth) {
+    const words = String(text).split('');
+    let lines = [];
+    let currentLine = '';
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine + word;
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxWidth && currentLine !== '') {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    lines.push(currentLine);
+    return lines;
   }
 });
