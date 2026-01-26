@@ -1,5 +1,6 @@
 page {
-  background-color: #1B262C; /* Night Mode Background */
+  background-color: #1B262C;
+  /* Night Mode Background */
   height: 100vh;
 }
 
@@ -43,8 +44,20 @@ page {
 .card-container {
   width: 80%;
   aspect-ratio: 3/4;
-  perspective: 2000rpx; /* 增加透视感 */
+  perspective: 2000rpx;
+  /* 增加透视感 */
   margin-bottom: 40rpx;
+  position: relative;
+}
+
+.destroy-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+  pointer-events: none;
 }
 
 .card-flipper {
@@ -70,7 +83,8 @@ page {
   position: absolute;
   width: 100%;
   height: 100%;
-  backface-visibility: hidden; /* 隐藏背面 */
+  backface-visibility: hidden;
+  /* 隐藏背面 */
   background-color: #FFF;
   border-radius: 20rpx;
   padding: 40rpx;
@@ -91,7 +105,8 @@ page {
 /* Back Face */
 .card-back {
   transform: rotateY(180deg);
-  background-color: #F0FFF0; /* 略微不同的背景色区分 */
+  background-color: #F0FFF0;
+  /* 略微不同的背景色区分 */
 }
 
 .card-header {
@@ -112,7 +127,8 @@ page {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center; /* 居中内容 */
+  align-items: center;
+  /* 居中内容 */
 }
 
 /* Front Content */
@@ -159,27 +175,95 @@ page {
   margin-top: 20rpx;
 }
 
-.destroy-btn {
+.action-area {
   margin-top: 20rpx;
-  background-color: #FF5722; /* Night Mode Destructive Color */
+  width: 100%;
+}
+
+.destroy-options {
+  display: flex;
+  justify-content: space-around;
+  width: 80%;
+  margin: 0 auto;
+}
+
+.destroy-btn-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.destroy-icon-btn {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  margin-bottom: 10rpx;
+  transition: all 0.3s;
+  border: 2rpx solid rgba(255, 255, 255, 0.2);
+}
+
+.destroy-icon-btn:active {
+  transform: scale(0.9);
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.destroy-icon-btn.tear {
   color: #FFF;
-  border-radius: 50rpx;
-  padding: 20rpx 60rpx;
-  font-weight: bold;
-  box-shadow: 0 0 20rpx rgba(255, 87, 34, 0.6);
-  animation: shake 2s infinite;
+}
+
+.destroy-icon-btn.burn {
+  color: #FF5722;
+}
+
+.destroy-icon-btn.crush {
+  color: #00FFCC;
+}
+
+.destroy-label {
+  color: #CCC;
+  font-size: 24rpx;
 }
 
 @keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.6;
+  }
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-2rpx); }
-  20%, 40%, 60%, 80% { transform: translateX(2rpx); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2rpx);
+  }
+
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2rpx);
+  }
 }
 
 .ashes {
@@ -189,6 +273,13 @@ page {
 }
 
 @keyframes fadeOut {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-50rpx); }
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-50rpx);
+  }
 }

@@ -36,7 +36,8 @@ async def generate_and_cache_card_task(user_id: str):
         conversation_text = "\n".join([f"{msg.role}: {msg.content}" for msg in reversed(history)])
         
         # 2. Build Prompt
-        prompt = PromptTemplates.CONCISE_SYSTEM_PROMPT.format(conversation_content=conversation_text)
+        # Use replace instead of format to avoid issues with braces in conversation_text
+        prompt = PromptTemplates.CONCISE_SYSTEM_PROMPT.replace("{conversation_content}", conversation_text)
         messages = [{"role": "user", "content": prompt}]
         
         # 3. Call LLM
@@ -45,34 +46,41 @@ async def generate_and_cache_card_task(user_id: str):
         response = client.chat_completion(messages, thinking_enabled=False)
         
         if "error" in response:
-             print(f"[BACKGROUND] LLM Error: {response['error']}")
-             return
+             error_msg = f"LLM Error: {response['error']}"
+             print(f"[BACKGROUND] {error_msg}")
+             return {"error": error_msg}
              
         ai_content = ""
         if "choices" in response and len(response["choices"]) > 0:
             ai_content = response["choices"][0]["message"]["content"]
             
         if not ai_content:
-             print("[BACKGROUND] Empty response from LLM")
-             return
+             error_msg = "Empty response from LLM"
+             print(f"[BACKGROUND] {error_msg}")
+             return {"error": error_msg}
 
         # 4. Parse and Validate JSON
         try:
             # Clean up potential markdown code blocks
             clean_content = ai_content.replace("```json", "").replace("```", "").strip()
             # Verify it's valid JSON
-            json.loads(clean_content) 
+            card_data = json.loads(clean_content) 
             
             # 5. Save to Cache
             save_card_cache(user_id, clean_content)
             print(f"[BACKGROUND] Card cached successfully for {user_id}")
+            return card_data
             
         except json.JSONDecodeError:
-             print(f"[BACKGROUND] JSON Parse Error: {ai_content}")
+             error_msg = f"JSON Parse Error: {ai_content}"
+             print(f"[BACKGROUND] {error_msg}")
+             return {"error": error_msg}
              
     except Exception as e:
-        print(f"[BACKGROUND] Unexpected Error: {e}")
+        error_msg = f"Unexpected Error: {e}"
+        print(f"[BACKGROUND] {error_msg}")
         traceback.print_exc()
+        return {"error": error_msg}
 
 @router.post("/chat")
 async def chat(
@@ -155,14 +163,14 @@ async def generate_card(
         print(f"[DEBUG] Cache miss for {user_id}, generating now...")
         
         # 2. Fallback to immediate generation
-        await generate_and_cache_card_task(user_id)
+        result = await generate_and_cache_card_task(user_id)
         
-        # 3. Check cache again
-        cached_json = get_card_cache(user_id)
-        if cached_json:
-            return json.loads(cached_json)
-            
-        raise HTTPException(status_code=500, detail="Failed to generate card")
+        if result and "error" not in result:
+             return result
+        
+        # If result has error, raise it
+        error_detail = result.get("error", "Unknown generation error") if result else "Failed to generate card"
+        raise HTTPException(status_code=500, detail=error_detail)
              
     except Exception as e:
         traceback.print_exc() # Print full traceback to console

@@ -1,4 +1,7 @@
 <view class="container night-mode">
+  <!-- 始终存在的 Canvas，用于动画，层级最高但初始隐藏 -->
+  <canvas type="2d" id="destroyCanvas" class="destroy-canvas" style="visibility: {{destroyed ? 'visible' : 'hidden'}}; pointer-events: none;"></canvas>
+
   <view wx:if="{{loading}}" class="loading-text">
     <text>正在提取焦虑样本...</text>
   </view>
@@ -9,7 +12,7 @@
   </view>
 
   <view wx:elif="{{cardData}}" class="card-container" bindtap="onFlipCard">
-    <view class="card-flipper {{isFlipped ? 'flipped' : ''}} {{destroyed ? 'destroyed' : ''}}">
+    <view class="card-flipper {{isFlipped ? 'flipped' : ''}}" style="opacity: {{destroyed ? 0 : 1}};">
       
       <!-- 正面 -->
       <view class="card card-front">
@@ -49,7 +52,20 @@
   </view>
 
   <view wx:if="{{!loading && !destroyed && !errorMsg}}" class="action-area">
-    <button class="destroy-btn" bindtap="onDestroy">🔥 销毁蕉绿 🔥</button>
+    <view class="destroy-options">
+      <view class="destroy-btn-wrapper" bindtap="onTear">
+        <view class="destroy-icon-btn tear">✂️</view>
+        <text class="destroy-label">撕碎</text>
+      </view>
+      <view class="destroy-btn-wrapper" bindtap="onBurn">
+        <view class="destroy-icon-btn burn">🔥</view>
+        <text class="destroy-label">烧毁</text>
+      </view>
+      <view class="destroy-btn-wrapper" bindtap="onCrush">
+        <view class="destroy-icon-btn crush">💥</view>
+        <text class="destroy-label">粉碎</text>
+      </view>
+    </view>
   </view>
   
   <view wx:if="{{destroyed}}" class="ashes">
