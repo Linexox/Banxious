@@ -6,6 +6,8 @@ Page({
     cardData: null,
     loading: true,
     destroyed: false,
+    isDestroying: false, // Replaces 'destroyed' for UI visibility control
+    interactionMode: 'none', // 'none', 'burn', 'tear', 'crush'
     isFlipped: false,
     showProfessionalAnalysis: false,
     errorMsg: ''
@@ -17,6 +19,26 @@ Page({
     startY: 0,
     startTime: 0,
     isMoving: false
+  },
+
+  // Animation/Interaction State
+  animState: {
+    cardRect: null, // {left, top, width, height}
+    cardImage: null,
+    rafId: null,
+    // Burn specific
+    burnHoles: [], // {x, y, r, growth}
+    burnParticles: [],
+    // Tear specific
+    tearPath: [], // Array of points
+    tearPolygons: [], // Array of polygons (points)
+    tearShards: [], // Falling pieces
+    // Crush specific
+    crushCount: 0, // 0-4
+    crushOffset: { x: 0, y: 0 },
+    crushScale: 1,
+    crushVelocity: { x: 0, y: 0 },
+    isThrown: false
   },
 
   // -------------------------------------------------------------------------
@@ -112,75 +134,108 @@ Page({
   },
 
   // -------------------------------------------------------------------------
-  // Interaction Handlers
+  // Interaction Handlers (Touch & Button)
   // -------------------------------------------------------------------------
 
-  onTouchStart(e) {
-    if (this.data.destroyed) return;
-    const touch = e.touches[0];
-    this.touchState = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      startTime: e.timeStamp,
-      isMoving: true
-    };
-  },
-
-  onTouchMove(e) {
-    // Future: Add visual feedback (e.g. card tilt)
-  },
-
-  onTouchEnd(e) {
-    if (this.data.destroyed || !this.touchState.isMoving) return;
-
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - this.touchState.startX;
-    const deltaY = touch.clientY - this.touchState.startY;
-    const deltaTime = e.timeStamp - this.touchState.startTime;
-
-    const dist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    // Tap detection (short time, short distance)
-    if (deltaTime < 300 && dist < 10) {
-      this.onFlipCard();
-      return;
-    }
-
-    // Swipe detection (distance > 50px)
-    if (dist > 50) {
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        // Vertical Swipe
-        if (deltaY < 0) {
-          // Swipe Up -> Burn (Fire rises)
-          this.triggerDestroy('burn');
-        } else {
-          // Swipe Down -> Tear (Tearing down)
-          this.triggerDestroy('tear');
-        }
-      } else {
-        // Horizontal Swipe -> Crush/Explode
-        this.triggerDestroy('crush');
-      }
-    }
-
-    this.touchState.isMoving = false;
-  },
-
+  // DOM Card Touch (Only active before destroy mode)
   onFlipCard() {
-    if (this.data.destroyed) return;
+    if (this.data.isDestroying || this.data.destroyed) return;
     this.setData({
       isFlipped: !this.data.isFlipped
     });
   },
 
-  onToggleAnalysis(e) {
-    // Prevent event bubbling to avoid flipping the card
-    // Note: catchtap is used in wxml, but good to be aware
-    this.setData({
-      showProfessionalAnalysis: !this.data.showProfessionalAnalysis
-    });
+  // Canvas Touch Handlers (Active during destroy mode)
+  onCanvasTouchStart(e) {
+    if (!this.data.isDestroying) return;
+    const touch = e.touches[0];
+    // Adjust touch coordinates to be relative to canvas/card if needed
+    // But since canvas is full screen overlay, clientX/Y is fine usually
+    // However, our logic might depend on card-relative coords.
+
+    // Store global touch state
+    this.touchState = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startTime: e.timeStamp,
+      isMoving: true,
+      lastX: touch.clientX,
+      lastY: touch.clientY
+    };
+
+    if (this.data.interactionMode === 'burn') {
+      this.handleBurnTap(touch.clientX, touch.clientY);
+    } else if (this.data.interactionMode === 'crush') {
+      if (this.animState.crushCount < 4) {
+        this.handleCrushTap();
+      } else {
+        // Prepare to drag
+        this.animState.crushOffset.startX = this.animState.crushOffset.x;
+        this.animState.crushOffset.startY = this.animState.crushOffset.y;
+      }
+    } else if (this.data.interactionMode === 'tear') {
+      // Start a cut line
+      this.animState.tearPath = [{ x: touch.clientX, y: touch.clientY }];
+    }
   },
 
+  onCanvasTouchMove(e) {
+    if (!this.data.isDestroying || !this.touchState.isMoving) return;
+    const touch = e.touches[0];
+
+    if (this.data.interactionMode === 'crush' && this.animState.crushCount >= 4) {
+      // Dragging the ball
+      const dx = touch.clientX - this.touchState.startX;
+      const dy = touch.clientY - this.touchState.startY;
+      this.animState.crushOffset.x = this.animState.crushOffset.startX + dx;
+      this.animState.crushOffset.y = this.animState.crushOffset.startY + dy;
+      // Update last position for velocity calc
+      this.touchState.lastX = touch.clientX;
+      this.touchState.lastY = touch.clientY;
+      this.touchState.lastTime = e.timeStamp;
+    } else if (this.data.interactionMode === 'tear') {
+      // Extend cut line
+      this.animState.tearPath.push({ x: touch.clientX, y: touch.clientY });
+      // Visual feedback handled in animation loop
+    }
+  },
+
+  onCanvasTouchEnd(e) {
+    if (!this.data.isDestroying) return;
+    const touch = e.changedTouches[0];
+
+    if (this.data.interactionMode === 'crush' && this.animState.crushCount >= 4) {
+      // Throw logic
+      const now = e.timeStamp;
+      const dt = now - (this.touchState.lastTime || this.touchState.startTime);
+      const dist = Math.sqrt(
+        Math.pow(touch.clientX - this.touchState.lastX, 2) +
+        Math.pow(touch.clientY - this.touchState.lastY, 2)
+      );
+      const speed = dist / (dt || 1); // px per ms
+
+      if (speed > 0.5) { // Threshold to throw
+        const angle = Math.atan2(
+          touch.clientY - this.touchState.lastY,
+          touch.clientX - this.touchState.lastX
+        );
+        this.animState.crushVelocity = {
+          x: Math.cos(angle) * speed * 20, // Amplify
+          y: Math.sin(angle) * speed * 20
+        };
+        this.animState.isThrown = true;
+      }
+    } else if (this.data.interactionMode === 'tear') {
+      // Finalize cut
+      this.animState.tearPath.push({ x: touch.clientX, y: touch.clientY });
+      this.handleTearCut(this.animState.tearPath);
+      this.animState.tearPath = []; // Clear
+    }
+
+    this.touchState.isMoving = false;
+  },
+
+  // Button Handlers
   onTear() {
     this.triggerDestroy('tear');
   },
@@ -201,42 +256,52 @@ Page({
     if (this.data.destroyed) return;
     if (!this.canvasReady) {
       wx.showToast({ title: '资源加载中...', icon: 'loading' });
-      // Try init again just in case
       this.initAnimationCanvas();
       return;
     }
 
-    // 1. 获取卡片 DOM 位置
     const query = wx.createSelectorQuery();
     query.select('.card-container').boundingClientRect(rect => {
-      if (!rect) {
-        console.error('Cannot find card container rect');
-        return;
+      if (!rect) return;
+
+      wx.vibrateShort();
+
+      // Initialize Animation State
+      this.animState = {
+        cardRect: rect,
+        cardImage: null, // Will be created in prepare
+        rafId: null,
+        burnHoles: [],
+        burnParticles: [],
+        tearPath: [],
+        tearPolygons: [], // Start with one rect
+        tearShards: [],
+        crushCount: 0,
+        crushOffset: { x: 0, y: 0 },
+        crushScale: 1,
+        crushVelocity: { x: 0, y: 0 },
+        isThrown: false
+      };
+
+      // For tear mode, initial polygon is the card rect
+      if (type === 'tear') {
+        this.animState.tearPolygons = [[
+          { x: rect.left, y: rect.top },
+          { x: rect.left + rect.width, y: rect.top },
+          { x: rect.left + rect.width, y: rect.top + rect.height },
+          { x: rect.left, y: rect.top + rect.height }
+        ]];
       }
 
-      // 2. 震动反馈
-      wx.vibrateLong();
-
-      // 3. 准备 Canvas 内容 (绘制静态卡片到 Canvas 上)
-      // 此时 Canvas 还是 visibility: hidden，但内容会保留
       this.prepareCanvasForAnimation(rect, () => {
-        // 4. 切换状态：隐藏 DOM 卡片，显示 Canvas
-        this.setData({ destroyed: true }, () => {
-          // 5. 执行具体动画
-          setTimeout(() => {
-            try {
-              if (type === 'burn') {
-                this.runBurnAnimation(rect);
-              } else if (type === 'tear') {
-                this.runTearAnimation(rect);
-              } else {
-                this.runExplosionAnimation(rect);
-              }
-            } catch (err) {
-              console.error('[Animation Error]:', err);
-              this.finishDestroy();
-            }
-          }, 50); // 给一点时间让 visibility 切换生效
+        this.setData({
+          isDestroying: true,
+          interactionMode: type
+        }, () => {
+          // Start the Loop
+          if (type === 'burn') this.startBurnLoop();
+          else if (type === 'crush') this.startCrushLoop();
+          else if (type === 'tear') this.startTearLoop();
         });
       });
     }).exec();
@@ -476,98 +541,713 @@ Page({
     ctx.shadowBlur = 0;
   },
 
-  // ✂️ 撕碎 (碎纸机效果)
-  runTearAnimation(rect) {
+  // -------------------------------------------------------------------------
+  // Burn Mode Implementation
+  // -------------------------------------------------------------------------
+
+  handleBurnTap(x, y) {
+    const rect = this.animState.cardRect;
+    // 检查是否点在卡片区域内 (扩大一点点击范围)
+    if (x < rect.left - 20 || x > rect.left + rect.width + 20 ||
+      y < rect.top - 20 || y > rect.top + rect.height + 20) {
+      return;
+    }
+
+    // 添加新的燃烧点 (Global Coordinates)
+    this.animState.burnHoles.push({
+      x: x,
+      y: y,
+      r: 1, // 初始半径
+      growth: 0.5 + Math.random() * 0.5, // 生长速度
+      maxR: Math.max(rect.width, rect.height) * 1.5 // 最大半径限制
+    });
+
+    // 立即产生一些火星反馈 (增加数量和大小)
+    for (let i = 0; i < 8; i++) {
+      this.animState.burnParticles.push({
+        type: 'spark',
+        x: x,
+        y: y,
+        vx: (Math.random() - 0.5) * 5,
+        vy: (Math.random() - 0.5) * 5,
+        life: 0.5 + Math.random() * 0.5,
+        size: 3 + Math.random() * 5, // Larger sparks
+        color: `255, ${Math.floor(Math.random() * 200)}, 0`
+      });
+    }
+  },
+
+  startBurnLoop() {
     const ctx = this.animationCtx;
     const canvas = this.animationCanvas;
     const width = canvas.width / this.dpr;
     const height = canvas.height / this.dpr;
+    const rect = this.animState.cardRect;
 
-    const cardX = rect.left;
-    const cardY = rect.top;
-    const cardW = rect.width;
-    const cardH = rect.height;
+    // 确保卡片图片已生成
+    if (!this.animState.cardImage) {
+      this.animState.cardImage = this.createCardImage(rect.width, rect.height);
+    }
 
-    // 准备卡片图片
-    const cardImage = this.createCardImage(cardW, cardH);
+    // Create an offscreen canvas for glow composition to avoid overlapping artifact
+    if (!this.animState.glowCanvas) {
+      const off = wx.createOffscreenCanvas({ type: '2d', width: width * this.dpr, height: height * this.dpr });
+      this.animState.glowCanvas = off;
+      this.animState.glowCtx = off.getContext('2d');
+      this.animState.glowCtx.scale(this.dpr, this.dpr);
+    }
 
-    const stripCount = 20;
-    const stripW = cardW / stripCount;
-    const strips = [];
+    this.animState.burnStartTime = Date.now();
 
-    for (let i = 0; i < stripCount; i++) {
-      strips.push({
-        id: i,
-        // 每个条带对应卡片图片的裁剪区域：sx, sy, sw, sh
-        sx: i * stripW,
-        sy: 0,
-        sw: stripW,
-        sh: cardH,
-        // 当前绘制位置 (相对于 cardX, cardY)
-        dx: i * stripW,
-        dy: 0,
-        vx: (Math.random() - 0.5) * 5,
-        vy: 2 + Math.random() * 5,
-        angle: 0,
-        vr: (Math.random() - 0.5) * 0.1,
-        dropDelay: i * 20 + Math.random() * 200 // 左边先掉还是右边先掉？随机一点
+    const loop = () => {
+      if (!this.data.isDestroying || this.data.interactionMode !== 'burn') return;
+
+      // 1. Update State
+      this.updateBurnState(rect);
+
+      // 2. Draw Frame
+      ctx.clearRect(0, 0, width, height);
+      this.drawBurnFrame(ctx, width, height, rect);
+
+      // 3. Check Completion
+      const elapsed = Date.now() - this.animState.burnStartTime;
+      if (this.checkBurnCompletion(rect, elapsed)) {
+        // 稍微延迟结束，让用户看到最后的效果
+        if (!this.finishingDestroy) {
+          this.finishingDestroy = true;
+          // Fade out effect
+          let fadeAlpha = 1.0;
+          const fadeLoop = () => {
+            fadeAlpha -= 0.05; // 0.5s approx
+            if (fadeAlpha <= 0) {
+              ctx.clearRect(0, 0, width, height);
+              this.finishDestroy();
+              return;
+            }
+            ctx.clearRect(0, 0, width, height);
+            // Pass alpha to drawBurnFrame to ensure holes are cut correctly
+            this.drawBurnFrame(ctx, width, height, rect, fadeAlpha);
+            canvas.requestAnimationFrame(fadeLoop);
+          };
+          canvas.requestAnimationFrame(fadeLoop);
+          return; // Stop main loop
+        }
+      }
+
+      if (!this.finishingDestroy) {
+        this.animState.rafId = canvas.requestAnimationFrame(loop);
+      }
+    };
+
+    this.animState.rafId = canvas.requestAnimationFrame(loop);
+  },
+
+  updateBurnState(rect) {
+    const holes = this.animState.burnHoles;
+    const particles = this.animState.burnParticles;
+
+    // Grow holes
+    holes.forEach(h => {
+      if (h.r < h.maxR) {
+        h.r += h.growth;
+        // 随着半径变大，生长稍微变慢
+        if (h.r > 50) h.growth *= 0.995;
+      }
+
+      // 在边缘产生粒子
+      const circumference = 2 * Math.PI * h.r;
+      // 每一帧产生的粒子数量与周长成正比，但要限制上限
+      // Increase particle count for more intense fire (1.3x)
+      const particleCount = Math.floor(circumference / 10 * 1.3);
+
+      if (Math.random() < 0.4) {
+        for (let i = 0; i < particleCount; i++) {
+          if (Math.random() > 0.15) continue;
+
+          const angle = Math.random() * Math.PI * 2;
+          const px = h.x + Math.cos(angle) * h.r;
+          const py = h.y + Math.sin(angle) * h.r;
+
+          // 只有在卡片范围内的边缘才产生粒子
+          if (px > rect.left && px < rect.left + rect.width &&
+            py > rect.top && py < rect.top + rect.height) {
+
+            const pType = Math.random();
+            // 10% Ash, 40% Spark, 50% Flame
+            if (pType < 0.1) {
+              // Ash (Drift Left)
+              particles.push({
+                type: 'ash',
+                x: px, y: py,
+                vx: -1 - Math.random() * 2, // Drift Left
+                vy: -0.5 - Math.random() * 1.5,
+                life: 1.0 + Math.random(),
+                size: 2 + Math.random() * 2,
+                color: '80, 80, 80'
+              });
+            } else if (pType < 0.5) {
+              // Spark
+              particles.push({
+                type: 'spark',
+                x: px, y: py,
+                vx: (Math.random() - 0.5) * 2,
+                vy: -1 - Math.random() * 3, // Up
+                life: 0.5 + Math.random() * 0.5,
+                size: 1 + Math.random() * 2,
+                color: `255, ${Math.floor(Math.random() * 200)}, 0`
+              });
+            } else {
+              // Flame (Intense, Upward)
+              particles.push({
+                type: 'flame',
+                x: px, y: py,
+                vx: (Math.random() - 0.5) * 1,
+                vy: -3 - Math.random() * 4, // Fast Up
+                life: 0.3 + Math.random() * 0.4,
+                size: (4 + Math.random() * 6) * 1.5, // 1.5x size
+                color: `255, ${100 + Math.floor(Math.random() * 100)}, 0` // Orange/Yellow
+              });
+            }
+          }
+        }
+      }
+    });
+
+    // Update Particles
+    this.updateParticles(particles, true, Date.now());
+  },
+
+  drawBurnFrame(ctx, canvasW, canvasH, rect, opacity = 1.0) {
+    const holes = this.animState.burnHoles;
+    const particles = this.animState.burnParticles;
+    const cardImage = this.animState.cardImage;
+
+    ctx.save();
+
+    // Layer 1: Card
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = opacity;
+    ctx.drawImage(cardImage, rect.left, rect.top, rect.width, rect.height);
+
+    // IMPORTANT: Reset alpha to 1.0 before cutting holes
+    ctx.globalAlpha = 1.0;
+
+    // Layer 2: Holes (Destination-Out) -> Dig holes in the card
+    ctx.globalCompositeOperation = 'destination-out';
+    holes.forEach(h => {
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Layer 3: Edge Glow (Source-Atop) -> Only on card pixels
+    // To prevent overlap accumulation, we draw all glows onto an offscreen canvas first
+    // then draw that offscreen canvas onto the main canvas with source-atop.
+    if (this.animState.glowCtx) {
+      const gCtx = this.animState.glowCtx;
+      gCtx.clearRect(0, 0, canvasW, canvasH);
+
+      // Draw all glow circles to offscreen
+      // Use 'lighter' to blend them nicely together into a unified fire ring?
+      // Or just 'source-over' to have a flat color? 
+      // User complained about "colors overlap and accumulate". 
+      // If we use source-over, they will just merge into a flat shape.
+      gCtx.globalCompositeOperation = 'source-over';
+
+      holes.forEach(h => {
+        const g = gCtx.createRadialGradient(h.x, h.y, h.r, h.x, h.y, h.r + 20);
+        g.addColorStop(0, 'rgba(255, 60, 0, 0.9)');
+        g.addColorStop(0.4, 'rgba(255, 120, 0, 0.6)');
+        g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+        gCtx.fillStyle = g;
+        gCtx.beginPath();
+        gCtx.arc(h.x, h.y, h.r + 20, 0, Math.PI * 2);
+        gCtx.fill();
+      });
+
+      // Now draw the composed glow onto the main canvas
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.globalAlpha = opacity;
+      ctx.drawImage(this.animState.glowCanvas, 0, 0, canvasW, canvasH);
+    } else {
+      // Fallback if offscreen not available
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.globalAlpha = opacity;
+      holes.forEach(h => {
+        const g = ctx.createRadialGradient(h.x, h.y, h.r, h.x, h.y, h.r + 15);
+        g.addColorStop(0, 'rgba(255, 50, 0, 1)');
+        g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r + 15, 0, Math.PI * 2);
+        ctx.fill();
       });
     }
 
-    let startTime = Date.now();
+    ctx.restore();
 
-    const animate = () => {
-      const now = Date.now();
-      const elapsed = now - startTime;
+    // Layer 4: Particles (Overlay)
+    // Draw flames with 'lighter' for intense look
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = opacity;
+    particles.forEach(p => {
+      if (p.type === 'ash') return; // Draw ash normally later
+
+      const alpha = Math.max(0, p.life);
+      ctx.fillStyle = `rgba(${p.color}, ${alpha})`;
+      ctx.shadowBlur = p.type === 'flame' ? 10 : 5;
+      ctx.shadowColor = `rgba(${p.color}, ${alpha})`;
+
+      ctx.beginPath();
+      if (p.type === 'flame') {
+        // Draw flame shape (teardrop)
+        ctx.moveTo(p.x, p.y - p.size);
+        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI);
+        ctx.lineTo(p.x, p.y - p.size);
+      } else {
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      }
+      ctx.fill();
+    });
+    ctx.restore();
+
+    // Draw Ash (Normal blend)
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    particles.forEach(p => {
+      if (p.type !== 'ash') return;
+      const alpha = Math.max(0, p.life);
+      ctx.fillStyle = `rgba(${p.color}, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  },
+
+  checkBurnCompletion(rect, elapsed) {
+    // 1. Time limit check (10s)
+    if (elapsed && elapsed > 10000) {
+      return true;
+    }
+
+    // 面积启发式算法
+    // 计算所有洞的面积总和 (不考虑重叠，作为近似)
+    // 如果总面积 > 卡片面积 * 1.5 (考虑重叠系数)，则认为烧完了
+
+    let totalHoleArea = 0;
+    this.animState.burnHoles.forEach(h => {
+      totalHoleArea += Math.PI * h.r * h.r;
+    });
+
+    const cardArea = rect.width * rect.height;
+
+    // 阈值：1.5倍卡片面积 (用户要求剩下面积 < 10%，即烧掉 90%。考虑到圆的重叠，1.5倍是个保守估计)
+    // 可以根据体验调整
+    return totalHoleArea > cardArea * 1.5;
+  },
+
+  // -------------------------------------------------------------------------
+  // Crush Mode Implementation
+  // -------------------------------------------------------------------------
+
+  handleCrushTap() {
+    if (this.animState.crushCount < 4) {
+      this.animState.crushCount++;
+      wx.vibrateShort();
+    }
+  },
+
+  startCrushLoop() {
+    const ctx = this.animationCtx;
+    const canvas = this.animationCanvas;
+    const width = canvas.width / this.dpr;
+    const height = canvas.height / this.dpr;
+    const rect = this.animState.cardRect;
+
+    if (!this.animState.cardImage) {
+      this.animState.cardImage = this.createCardImage(rect.width, rect.height);
+    }
+
+    // Initialize state vars
+    this.animState.currentScale = 1;
+
+    const loop = () => {
+      if (!this.data.isDestroying || this.data.interactionMode !== 'crush') return;
+
+      this.updateCrushState();
 
       ctx.clearRect(0, 0, width, height);
+      this.drawCrushFrame(ctx, rect);
 
-      let activeStrips = 0;
-
-      strips.forEach(strip => {
-        // 检查延迟
-        if (elapsed > strip.dropDelay) {
-          strip.dy += strip.vy;
-          strip.dx += strip.vx;
-          strip.angle += strip.vr;
-          strip.vy += 0.5; // 重力
-        }
-
-        // 只要还在屏幕内就算 active
-        // 简单判断：dy < height
-        if (cardY + strip.dy < height) {
-          activeStrips++;
-        }
-
-        ctx.save();
-        // 移动到条带的中心点进行旋转
-        const absoluteX = cardX + strip.dx + stripW / 2;
-        const absoluteY = cardY + strip.dy + cardH / 2;
-
-        ctx.translate(absoluteX, absoluteY);
-        ctx.rotate(strip.angle);
-
-        // 绘制裁剪的卡片部分
-        // drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh)
-        // 注意：dx, dy 是相对于 translate 后的原点。原点在条带中心。
-        // 条带宽高是 stripW, cardH
-        ctx.drawImage(
-          cardImage,
-          strip.sx, strip.sy, strip.sw, strip.sh,
-          -stripW / 2, -cardH / 2, strip.sw, strip.sh
-        );
-
-        ctx.restore();
-      });
-
-      if (activeStrips > 0) {
-        canvas.requestAnimationFrame(animate);
-      } else {
+      // Check finish
+      if (this.animState.isThrown && this.animState.currentScale < 0.2) {
         this.finishDestroy();
+        return;
       }
+
+      this.animState.rafId = canvas.requestAnimationFrame(loop);
     };
-    animate();
+    this.animState.rafId = canvas.requestAnimationFrame(loop);
   },
+
+  updateCrushState() {
+    // 1. Handle Crumpling (Scale down based on count)
+    const targetScales = [1.0, 0.8, 0.6, 0.4, 0.3];
+    const target = targetScales[this.animState.crushCount];
+
+    if (this.animState.isThrown) {
+      // Move by velocity
+      this.animState.crushOffset.x += this.animState.crushVelocity.x;
+      this.animState.crushOffset.y += this.animState.crushVelocity.y;
+
+      // Shrink as it goes "deep" into screen
+      this.animState.currentScale *= 0.95;
+
+      // Add some gravity?
+      this.animState.crushVelocity.y += 1;
+
+    } else {
+      // Lerp to crumple state
+      const diff = target - this.animState.currentScale;
+      if (Math.abs(diff) > 0.001) {
+        this.animState.currentScale += diff * 0.1;
+      }
+    }
+  },
+
+  drawCrushFrame(ctx, rect) {
+    const scale = this.animState.currentScale;
+    const offset = this.animState.crushOffset;
+
+    const cx = rect.left + rect.width / 2 + offset.x;
+    const cy = rect.top + rect.height / 2 + offset.y;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+
+    // Draw Card centered at 0,0
+    ctx.drawImage(
+      this.animState.cardImage,
+      -rect.width / 2, -rect.height / 2,
+      rect.width, rect.height
+    );
+
+    // Draw "wrinkles" overlay if crumpled
+    if (this.animState.crushCount > 0) {
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = `rgba(0, 0, 0, ${this.animState.crushCount * 0.1})`;
+      ctx.fillRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height);
+
+      // Draw some random lines
+      ctx.strokeStyle = `rgba(0,0,0, ${this.animState.crushCount * 0.15})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-rect.width / 3, -rect.height / 3);
+      ctx.lineTo(rect.width / 3, rect.height / 4);
+      ctx.moveTo(rect.width / 4, -rect.height / 2);
+      ctx.lineTo(-rect.width / 4, rect.height / 3);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  },
+
+  // -------------------------------------------------------------------------
+  // Tear Mode Implementation
+  // -------------------------------------------------------------------------
+
+  handleTearCut(path) {
+    if (path.length < 2) return;
+    const p1 = path[0];
+    const p2 = path[path.length - 1];
+
+    // Check line length
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    if (dx * dx + dy * dy < 100) return; // Too short
+
+    const newPolygons = [];
+    let cutOccurred = false;
+
+    // Try to cut each existing polygon
+    this.animState.tearPolygons.forEach(poly => {
+      const result = this.splitPolygon(poly, p1, p2);
+      if (result) {
+        cutOccurred = true;
+        // Result has 2 polys. Identify smaller one to be shard.
+        const area0 = this.getPolygonArea(result[0]);
+        const area1 = this.getPolygonArea(result[1]);
+
+        let shard, keep;
+        if (area0 < area1) { shard = result[0]; keep = result[1]; }
+        else { shard = result[1]; keep = result[0]; }
+
+        // Add 'keep' back to main list
+        newPolygons.push(keep);
+
+        // Create shard object
+        const center = this.getPolygonCenter(shard);
+        // Velocity based on swipe direction (normal to cut?)
+        // Or just gravity + random
+        this.animState.tearShards.push({
+          vertices: shard.map(v => ({ x: v.x - center.x, y: v.y - center.y })), // Relative
+          x: center.x,
+          y: center.y,
+          originX: center.x, // Store original center for texture mapping
+          originY: center.y,
+          vx: (Math.random() - 0.5) * 5,
+          vy: 2 + Math.random() * 5,
+          angle: 0,
+          vAngle: (Math.random() - 0.5) * 0.2
+        });
+        wx.vibrateShort();
+      } else {
+        newPolygons.push(poly);
+      }
+    });
+
+    this.animState.tearPolygons = newPolygons;
+  },
+
+  startTearLoop() {
+    const ctx = this.animationCtx;
+    const canvas = this.animationCanvas;
+    const width = canvas.width / this.dpr;
+    const height = canvas.height / this.dpr;
+    const rect = this.animState.cardRect;
+
+    if (!this.animState.cardImage) {
+      this.animState.cardImage = this.createCardImage(rect.width, rect.height);
+    }
+
+    const loop = () => {
+      if (!this.data.isDestroying || this.data.interactionMode !== 'tear') return;
+
+      this.updateTearState(height);
+
+      ctx.clearRect(0, 0, width, height);
+      this.drawTearFrame(ctx, rect);
+
+      // Check remaining area
+      let totalArea = 0;
+      if (this.animState.tearPolygons.length > 0) {
+        totalArea = this.animState.tearPolygons.reduce((sum, poly) => sum + this.getPolygonArea(poly), 0);
+        const originalArea = rect.width * rect.height;
+
+        if (totalArea < originalArea * 0.3) {
+          // Convert remaining polygons to shards (Final Fall)
+          this.animState.tearPolygons.forEach(poly => {
+            const center = this.getPolygonCenter(poly);
+            this.animState.tearShards.push({
+              vertices: poly.map(v => ({ x: v.x - center.x, y: v.y - center.y })),
+              x: center.x,
+              y: center.y,
+              originX: center.x,
+              originY: center.y,
+              vx: (Math.random() - 0.5) * 5,
+              vy: 5 + Math.random() * 5,
+              angle: 0,
+              vAngle: (Math.random() - 0.5) * 0.2
+            });
+          });
+          this.animState.tearPolygons = []; // Clear main polygons
+        }
+      }
+
+      // Check finish condition: No polygons left AND no shards left on screen
+      if (this.animState.tearPolygons.length === 0 && this.animState.tearShards.length === 0) {
+        this.finishDestroy();
+        return;
+      }
+
+      this.animState.rafId = canvas.requestAnimationFrame(loop);
+    };
+    this.animState.rafId = canvas.requestAnimationFrame(loop);
+  },
+
+  updateTearState(canvasHeight) {
+    // Update shards
+    for (let i = this.animState.tearShards.length - 1; i >= 0; i--) {
+      const s = this.animState.tearShards[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.angle += s.vAngle;
+      s.vy += 0.5; // Gravity
+
+      // Remove if out of screen
+      if (s.y > canvasHeight + 100) {
+        this.animState.tearShards.splice(i, 1);
+      }
+    }
+  },
+
+  drawTearFrame(ctx, rect) {
+    const cardImage = this.animState.cardImage;
+
+    // 1. Draw remaining polygons
+    this.animState.tearPolygons.forEach(poly => {
+      ctx.save();
+      // Clip to polygon
+      ctx.beginPath();
+      poly.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.closePath();
+      ctx.clip();
+
+      // Draw original card (it will only show inside clip)
+      ctx.drawImage(cardImage, rect.left, rect.top, rect.width, rect.height);
+
+      // Optional: Draw cut edge?
+      // Hard to identify which edge is cut.
+      ctx.restore();
+    });
+
+    // 2. Draw Shards
+    this.animState.tearShards.forEach(s => {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.angle);
+
+      ctx.beginPath();
+      s.vertices.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.closePath();
+      ctx.clip();
+
+      // Draw card texture on shard
+      // s.originX/Y is where the shard's center was on the card originally.
+      // In local context, (0,0) is s.x, s.y
+      // We want to map the card image so that the point (originX, originY) on the card
+      // aligns with (0,0) in current context.
+      // Card top-left is at (rect.left, rect.top) in global space.
+      // So relative to originX, originY: 
+      // imageX = rect.left - originX
+      // imageY = rect.top - originY
+      if (s.originX !== undefined) {
+        ctx.drawImage(cardImage, rect.left - s.originX, rect.top - s.originY, rect.width, rect.height);
+      } else {
+        // Fallback for old shards or error
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fill();
+      }
+
+      // Optional: slight border for visibility
+      // ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      // ctx.stroke();
+
+      ctx.restore();
+    });
+
+    // 3. Draw Cut Line (Feedback)
+    const path = this.animState.tearPath;
+    if (path && path.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.moveTo(path[0].x, path[0].y);
+      for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+      ctx.stroke();
+    }
+  },
+
+  // -------------------------------------------------------------------------
+  // Geometry Helpers
+  // -------------------------------------------------------------------------
+
+  getPolygonArea(poly) {
+    let area = 0;
+    for (let i = 0; i < poly.length; i++) {
+      let j = (i + 1) % poly.length;
+      area += poly[i].x * poly[j].y;
+      area -= poly[j].x * poly[i].y;
+    }
+    return Math.abs(area / 2);
+  },
+
+  getPolygonCenter(poly) {
+    let x = 0, y = 0;
+    poly.forEach(p => { x += p.x; y += p.y; });
+    return { x: x / poly.length, y: y / poly.length };
+  },
+
+  // Split convex polygon by line p1-p2. Returns [poly1, poly2] or null.
+  splitPolygon(poly, p1, p2) {
+    const intersections = [];
+    for (let i = 0; i < poly.length; i++) {
+      const v1 = poly[i];
+      const v2 = poly[(i + 1) % poly.length];
+      const inter = this.getLineIntersection(v1, v2, p1, p2);
+      if (inter) {
+        intersections.push({ point: inter, index: i });
+      }
+    }
+
+    if (intersections.length !== 2) return null; // Must intersect exactly twice
+
+    const i1 = intersections[0];
+    const i2 = intersections[1];
+
+    // Ensure i1.index < i2.index for simpler logic
+    // But indices are circular.
+    // Let's just slice.
+    // Poly 1: i1.point -> v[i1.index+1] ... v[i2.index] -> i2.point -> i1.point
+
+    const poly1 = [i1.point];
+    let idx = (i1.index + 1) % poly.length;
+    while (idx !== (i2.index + 1) % poly.length) {
+      poly1.push(poly[idx]);
+      idx = (idx + 1) % poly.length;
+    }
+    poly1.push(i2.point);
+
+    // Poly 2: i2.point -> v[i2.index+1] ... v[i1.index] -> i1.point -> i2.point
+    const poly2 = [i2.point];
+    idx = (i2.index + 1) % poly.length;
+    while (idx !== (i1.index + 1) % poly.length) {
+      poly2.push(poly[idx]);
+      idx = (idx + 1) % poly.length;
+    }
+    poly2.push(i1.point);
+
+    return [poly1, poly2];
+  },
+
+  getLineIntersection(p1, p2, p3, p4) {
+    const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+    const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+
+    const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+    if (denom === 0) return null;
+
+    const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+    const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+
+    if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) { // Segment intersection
+      // For p3-p4 (the cut line), we treat it as an infinite line? 
+      // No, user draws a finite line.
+      // But to cut effectively, we should probably extend the cut line to infinity 
+      // OR require the user to cut THROUGH the polygon.
+      // Let's assume infinite line for easier cutting?
+      // User said "record start and end... form a straight line... split".
+      // If the line is short and fully inside, it shouldn't split.
+      // So strict segment intersection is correct. User must swipe ACROSS the edge.
+      return {
+        x: x1 + ua * (x2 - x1),
+        y: y1 + ua * (y2 - y1)
+      };
+    }
+    return null;
+  },
+
+
 
   // 💥 粉碎 (爆炸)
   runExplosionAnimation(rect) {

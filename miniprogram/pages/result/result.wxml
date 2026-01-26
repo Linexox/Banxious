@@ -1,6 +1,11 @@
 <view class="container night-mode">
   <!-- 始终存在的 Canvas，用于动画，层级最高但初始隐藏 -->
-  <canvas type="2d" id="destroyCanvas" class="destroy-canvas" style="visibility: {{destroyed ? 'visible' : 'hidden'}}; pointer-events: none;"></canvas>
+  <canvas type="2d" id="destroyCanvas" class="destroy-canvas" 
+    style="visibility: {{isDestroying ? 'visible' : 'hidden'}}; pointer-events: {{isDestroying ? 'auto' : 'none'}};"
+    bindtouchstart="onCanvasTouchStart"
+    bindtouchmove="onCanvasTouchMove"
+    bindtouchend="onCanvasTouchEnd"
+  ></canvas>
 
   <view wx:if="{{loading}}" class="loading-text">
     <text>正在提取焦虑样本...</text>
@@ -11,11 +16,8 @@
     <button class="retry-btn" bindtap="generateCard">重试</button>
   </view>
 
-  <view wx:elif="{{cardData}}" class="card-container" 
-        bindtouchstart="onTouchStart" 
-        bindtouchmove="onTouchMove" 
-        bindtouchend="onTouchEnd">
-    <view class="card-flipper {{isFlipped ? 'flipped' : ''}}" style="opacity: {{destroyed ? 0 : 1}};">
+  <view wx:elif="{{cardData}}" class="card-container" bindtap="onFlipCard">
+    <view class="card-flipper {{isFlipped ? 'flipped' : ''}}" style="opacity: {{isDestroying ? 0 : 1}};">
       
       <!-- 正面 -->
       <view class="card card-front">
@@ -65,7 +67,7 @@
     </view>
   </view>
 
-  <view wx:if="{{!loading && !destroyed && !errorMsg}}" class="action-area">
+  <view wx:if="{{!loading && !isDestroying && !errorMsg}}" class="action-area">
     <view class="destroy-options">
       <view class="destroy-btn-wrapper" bindtap="onTear">
         <view class="destroy-icon-btn tear">✂️</view>
