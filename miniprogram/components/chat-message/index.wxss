@@ -1,0 +1,42 @@
+.message-container {
+  display: flex;
+  margin-bottom: 20rpx;
+  padding: 0 20rpx;
+}
+
+.message-container.user {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background-color: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  margin: 0 10rpx;
+}
+
+.content {
+  max-width: 60%;
+  padding: 20rpx;
+  border-radius: 20rpx;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+.user .content {
+  background-color: #B8E986; /* Day Mode User Color */
+  color: #333;
+  border-top-right-radius: 4rpx;
+}
+
+.assistant .content {
+  background-color: #FFF;
+  color: #333;
+  border-top-left-radius: 4rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}

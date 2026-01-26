@@ -1,0 +1,14 @@
+<view class="container">
+  <view class="header">
+    <text class="title">Mood Lab</text>
+    <text class="subtitle">在这里，把焦虑变成卡片</text>
+  </view>
+
+  <view class="machine-wrapper">
+    <card-machine status="idle"></card-machine>
+  </view>
+
+  <view class="action-area">
+    <button class="start-btn" bindtap="onStart">开始倾诉</button>
+  </view>
+</view>

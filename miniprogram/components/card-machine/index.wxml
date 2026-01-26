@@ -1,0 +1,13 @@
+<view class="machine-container">
+  <view class="machine-body {{status}}">
+    <view class="slot"></view>
+    <view class="card-output">
+      <view class="card {{status === 'done' ? 'eject' : ''}}">
+        <text>🍌</text>
+      </view>
+    </view>
+  </view>
+  <view class="status-text" wx:if="{{status === 'processing'}}">
+    <text>正在分析蕉绿成分...</text>
+  </view>
+</view>

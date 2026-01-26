@@ -1,0 +1,5 @@
+{
+  "usingComponents": {
+    "card-machine": "/components/card-machine/index"
+  }
+}

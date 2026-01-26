@@ -1,0 +1,30 @@
+# General
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Python / Backend
+backend/__pycache__/
+backend/*.py[oc]
+backend/build/
+backend/dist/
+backend/wheels/
+backend/*.egg-info
+backend/.venv/
+backend/venv/
+backend/env/
+backend/.env
+backend/greenbanana.db
+*.db
+
+# WeChat Mini Program / Frontend
+miniprogram/node_modules/
+miniprogram/miniprogram_npm/
+miniprogram/unpackage/
+miniprogram/dist/
+project.private.config.json
+
+# Dependencies
+node_modules/

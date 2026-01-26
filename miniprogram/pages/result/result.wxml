@@ -1,0 +1,58 @@
+<view class="container night-mode">
+  <view wx:if="{{loading}}" class="loading-text">
+    <text>正在提取焦虑样本...</text>
+  </view>
+
+  <view wx:elif="{{errorMsg}}" class="error-container">
+    <text class="error-text">⚠️ {{errorMsg}}</text>
+    <button class="retry-btn" bindtap="generateCard">重试</button>
+  </view>
+
+  <view wx:elif="{{cardData}}" class="card-container" bindtap="onFlipCard">
+    <view class="card-flipper {{isFlipped ? 'flipped' : ''}} {{destroyed ? 'destroyed' : ''}}">
+      
+      <!-- 正面 -->
+      <view class="card card-front">
+        <view class="card-header">
+          <text class="tag">{{cardData.mood_tag}}</text>
+        </view>
+        <view class="card-body">
+          <text class="encouragement">{{cardData.encouragement}}</text>
+          <view class="hint">👆 点击翻转查看建议</view>
+        </view>
+        <view class="card-footer">
+          <text class="quote">“{{cardData.healing_quote}}”</text>
+        </view>
+      </view>
+
+      <!-- 反面 -->
+      <view class="card card-back">
+        <view class="card-header">
+          <text class="tag">Mood Lab 建议</text>
+        </view>
+        <view class="card-body">
+          <view class="suggestion-list">
+            <block wx:for="{{cardData.suggestions}}" wx:key="index">
+              <view class="suggestion-item">
+                <text class="bullet">•</text>
+                <text class="content">{{item}}</text>
+              </view>
+            </block>
+          </view>
+        </view>
+        <view class="card-footer">
+          <text class="quote">“{{cardData.healing_quote}}”</text>
+        </view>
+      </view>
+
+    </view>
+  </view>
+
+  <view wx:if="{{!loading && !destroyed && !errorMsg}}" class="action-area">
+    <button class="destroy-btn" bindtap="onDestroy">🔥 销毁蕉绿 🔥</button>
+  </view>
+  
+  <view wx:if="{{destroyed}}" class="ashes">
+    <text>✨</text>
+  </view>
+</view>

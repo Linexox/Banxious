@@ -1,0 +1,14 @@
+<view class="input-container">
+  <input 
+    class="input-box"
+    value="{{inputValue}}"
+    placeholder="告诉蕉绿..." 
+    bindinput="onInput"
+    confirm-type="send"
+    bindconfirm="onSend"
+    disabled="{{disabled}}"
+  />
+  <view class="send-btn {{inputValue.trim() ? 'active' : ''}}" bindtap="onSend">
+    <text>↑</text>
+  </view>
+</view>

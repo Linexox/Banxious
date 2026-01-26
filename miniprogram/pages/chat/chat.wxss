@@ -1,0 +1,46 @@
+page {
+  background-color: #FFFDF5;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.chat-list {
+  flex: 1;
+  padding: 20rpx;
+  box-sizing: border-box;
+}
+
+.loading {
+  text-align: center;
+  font-size: 24rpx;
+  color: #999;
+  padding: 20rpx;
+}
+
+.input-area {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: #fff;
+  z-index: 100;
+  border-top: 1rpx solid #eee; /* 增加顶部边框 */
+  padding-bottom: env(safe-area-inset-bottom); /* 适配全面屏底部 */
+}
+
+.generate-btn {
+  position: fixed;
+  top: 20rpx;
+  right: 20rpx;
+  background-color: #F8E71C;
+  padding: 10rpx 20rpx;
+  border-radius: 30rpx;
+  font-size: 24rpx;
+  color: #333;
+  box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.1);
+  z-index: 99;
+}

@@ -1,0 +1,22 @@
+<view class="container">
+  <!-- 调试信息：如果看到这个，说明 Chat 页面已加载 -->
+  <view style="text-align: center; font-size: 20rpx; color: #ccc; padding-top: 10rpx;">Mood Lab Chat v1.0</view>
+
+  <scroll-view class="chat-list" scroll-y>
+    <block wx:for="{{messages}}" wx:key="index">
+      <chat-message msg="{{item}}"></chat-message>
+    </block>
+    <view wx:if="{{loading}}" class="loading">
+      <text>对方正在输入...</text>
+    </view>
+    <view style="height: 120rpx;"></view> <!-- Spacer for input area -->
+  </scroll-view>
+
+  <view class="input-area">
+    <chat-input bind:send="onSend" disabled="{{loading}}"></chat-input>
+  </view>
+
+  <view class="generate-btn" bindtap="onGenerateCard">
+    <text>生成反焦虑卡片</text>
+  </view>
+</view>
