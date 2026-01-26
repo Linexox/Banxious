@@ -11,6 +11,14 @@ Page({
     errorMsg: ''
   },
 
+  // Touch tracking state
+  touchState: {
+    startX: 0,
+    startY: 0,
+    startTime: 0,
+    isMoving: false
+  },
+
   // -------------------------------------------------------------------------
   // Lifecycle & Initialization
   // -------------------------------------------------------------------------
@@ -106,6 +114,57 @@ Page({
   // -------------------------------------------------------------------------
   // Interaction Handlers
   // -------------------------------------------------------------------------
+
+  onTouchStart(e) {
+    if (this.data.destroyed) return;
+    const touch = e.touches[0];
+    this.touchState = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startTime: e.timeStamp,
+      isMoving: true
+    };
+  },
+
+  onTouchMove(e) {
+    // Future: Add visual feedback (e.g. card tilt)
+  },
+
+  onTouchEnd(e) {
+    if (this.data.destroyed || !this.touchState.isMoving) return;
+
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - this.touchState.startX;
+    const deltaY = touch.clientY - this.touchState.startY;
+    const deltaTime = e.timeStamp - this.touchState.startTime;
+
+    const dist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Tap detection (short time, short distance)
+    if (deltaTime < 300 && dist < 10) {
+      this.onFlipCard();
+      return;
+    }
+
+    // Swipe detection (distance > 50px)
+    if (dist > 50) {
+      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+        // Vertical Swipe
+        if (deltaY < 0) {
+          // Swipe Up -> Burn (Fire rises)
+          this.triggerDestroy('burn');
+        } else {
+          // Swipe Down -> Tear (Tearing down)
+          this.triggerDestroy('tear');
+        }
+      } else {
+        // Horizontal Swipe -> Crush/Explode
+        this.triggerDestroy('crush');
+      }
+    }
+
+    this.touchState.isMoving = false;
+  },
 
   onFlipCard() {
     if (this.data.destroyed) return;

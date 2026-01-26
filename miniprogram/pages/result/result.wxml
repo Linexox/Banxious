@@ -11,7 +11,10 @@
     <button class="retry-btn" bindtap="generateCard">重试</button>
   </view>
 
-  <view wx:elif="{{cardData}}" class="card-container" bindtap="onFlipCard">
+  <view wx:elif="{{cardData}}" class="card-container" 
+        bindtouchstart="onTouchStart" 
+        bindtouchmove="onTouchMove" 
+        bindtouchend="onTouchEnd">
     <view class="card-flipper {{isFlipped ? 'flipped' : ''}}" style="opacity: {{destroyed ? 0 : 1}};">
       
       <!-- 正面 -->
