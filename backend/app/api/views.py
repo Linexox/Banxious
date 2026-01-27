@@ -2,11 +2,9 @@ from fastapi import APIRouter, HTTPException, Body, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from app.api.utils.factory import get_llm_client
-from app.api.utils.psychology_knowledge import psychology_knowledge
-from app.storage.conversation_storage import save_message, get_history, save_card_cache, get_card_cache
-from app.templates.prompt_templates import PromptTemplates
-from config.settings import settings
+from app.storage.conversation_storage import save_message, get_card_cache
+from app.services.card_service import generate_and_cache_card_task
+from app.services.chat_service import ChatService
 import json
 import asyncio
 
@@ -26,65 +24,6 @@ async def log_frontend_error(log: LogRequest):
         print(f"Context: {json.dumps(log.context, indent=2, ensure_ascii=False)}")
     return {"status": "ok"}
 
-async def generate_and_cache_card_task(user_id: str):
-    try:
-        print(f"\n[BACKGROUND] >>> Starting Card Generation for {user_id}")
-        
-        # 1. Get recent history
-        history = get_history(user_id, limit=50)
-        if not history:
-             print("[BACKGROUND] No history found, skipping.")
-             return
-             
-        conversation_text = "\n".join([f"{msg.role}: {msg.content}" for msg in reversed(history)])
-        
-        # 2. Build Prompt
-        # Use replace instead of format to avoid issues with braces in conversation_text
-        prompt = PromptTemplates.CONCISE_SYSTEM_PROMPT.replace("{conversation_content}", conversation_text)
-        messages = [{"role": "user", "content": prompt}]
-        
-        # 3. Call LLM
-        client = get_llm_client()
-        # Disable thinking for JSON generation to ensure strict format
-        response = client.chat_completion(messages, thinking_enabled=False)
-        
-        if "error" in response:
-             error_msg = f"LLM Error: {response['error']}"
-             print(f"[BACKGROUND] {error_msg}")
-             return {"error": error_msg}
-             
-        ai_content = ""
-        if "choices" in response and len(response["choices"]) > 0:
-            ai_content = response["choices"][0]["message"]["content"]
-            
-        if not ai_content:
-             error_msg = "Empty response from LLM"
-             print(f"[BACKGROUND] {error_msg}")
-             return {"error": error_msg}
-
-        # 4. Parse and Validate JSON
-        try:
-            # Clean up potential markdown code blocks
-            clean_content = ai_content.replace("```json", "").replace("```", "").strip()
-            # Verify it's valid JSON
-            card_data = json.loads(clean_content) 
-            
-            # 5. Save to Cache
-            save_card_cache(user_id, clean_content)
-            print(f"[BACKGROUND] Card cached successfully for {user_id}")
-            return card_data
-            
-        except json.JSONDecodeError:
-             error_msg = f"JSON Parse Error: {ai_content}"
-             print(f"[BACKGROUND] {error_msg}")
-             return {"error": error_msg}
-             
-    except Exception as e:
-        error_msg = f"Unexpected Error: {e}"
-        print(f"[BACKGROUND] {error_msg}")
-        traceback.print_exc()
-        return {"error": error_msg}
-
 @router.post("/chat")
 async def chat(
     background_tasks: BackgroundTasks,
@@ -100,58 +39,17 @@ async def chat(
         # 1. Save User Message
         current_msg = save_message(user_id, "user", content)
         
-        async def event_generator():
-            try:
-                # 2. Retrieve Knowledge
-                knowledge = psychology_knowledge.search(content)
-                
-                # 3. Build Messages
-                # Start with System Prompt based on mode
-                if mode == "professional":
-                    system_prompt = PromptTemplates.PROFESSIONAL_SYSTEM_PROMPT
-                else:
-                    system_prompt = PromptTemplates.STANDARD_SYSTEM_PROMPT
-                    
-                if knowledge:
-                    system_prompt += f"\n\n相关心理学知识库：\n{knowledge}"
-                    
-                messages = [{"role": "system", "content": system_prompt}]
-                
-                # Add History
-                history = get_history(user_id, limit=20) 
-                for msg in reversed(history):
-                    if msg.id != current_msg.id: # Exclude current message to avoid duplication
-                         messages.append({"role": msg.role, "content": msg.content})
-                
-                # Add Current User Message
-                messages.append({"role": "user", "content": content})
-                
-                print(f"[DEBUG] Sending messages to LLM: {json.dumps(messages, ensure_ascii=False)}") # Debug log
-
-                # 4. Call LLM (Stream)
-                client = get_llm_client()
-                full_content = ""
-                
-                print(f"[DEBUG] Starting stream with {settings.LLM_PROVIDER}")
-                for chunk in client.chat_completion_stream(messages, thinking_enabled=thinking_enabled):
-                    if chunk.startswith("[ERROR]"):
-                         yield chunk.encode('utf-8')
-                         return
-                    
-                    full_content += chunk
-                    yield chunk.encode('utf-8')
-                
-                # 5. Save AI Message
-                if full_content:
-                    save_message(user_id, "assistant", full_content)
-                    # Trigger background card generation
-                    asyncio.create_task(generate_and_cache_card_task(user_id))
-                    
-            except Exception as e:
-                traceback.print_exc()
-                yield f"[ERROR] {str(e)}".encode('utf-8')
-
-        return StreamingResponse(event_generator(), media_type="text/plain")
+        # 2. Delegate to ChatService
+        return StreamingResponse(
+            ChatService.chat_stream_generator(
+                user_id=user_id,
+                content=content,
+                mode=mode,
+                thinking_enabled=thinking_enabled,
+                current_msg_id=current_msg.id
+            ),
+            media_type="text/plain"
+        )
 
     except Exception as e:
         traceback.print_exc() # Print full traceback to console

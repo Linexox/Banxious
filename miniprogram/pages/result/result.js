@@ -386,7 +386,7 @@ Page({
     for (let i = 0; i < initialPoints; i++) holes.push(spawnHole());
 
     let startTime = Date.now();
-    const MAX_DURATION = 4000;
+    const MAX_DURATION = 8000;
     const FADE_OUT_DURATION = 500;
 
     const animate = () => {
@@ -608,41 +608,46 @@ Page({
     const loop = () => {
       if (!this.data.isDestroying || this.data.interactionMode !== 'burn') return;
 
-      // 1. Update State
-      this.updateBurnState(rect);
-
-      // 2. Draw Frame
-      ctx.clearRect(0, 0, width, height);
-      this.drawBurnFrame(ctx, width, height, rect);
-
-      // 3. Check Completion
+      // 1. Check Completion (Trigger Transition)
       const elapsed = Date.now() - this.animState.burnStartTime;
-      if (this.checkBurnCompletion(rect, elapsed)) {
-        // 稍微延迟结束，让用户看到最后的效果
-        if (!this.finishingDestroy) {
-          this.finishingDestroy = true;
-          // Fade out effect
-          let fadeAlpha = 1.0;
-          const fadeLoop = () => {
-            fadeAlpha -= 0.05; // 0.5s approx
-            if (fadeAlpha <= 0) {
-              ctx.clearRect(0, 0, width, height);
-              this.finishDestroy();
-              return;
-            }
-            ctx.clearRect(0, 0, width, height);
-            // Pass alpha to drawBurnFrame to ensure holes are cut correctly
-            this.drawBurnFrame(ctx, width, height, rect, fadeAlpha);
-            canvas.requestAnimationFrame(fadeLoop);
-          };
-          canvas.requestAnimationFrame(fadeLoop);
-          return; // Stop main loop
+      if (!this.finishingDestroy && this.checkBurnCompletion(rect, elapsed)) {
+        this.finishingDestroy = true;
+      }
+      
+      // 2. Main Logic
+      if (this.finishingDestroy) {
+        // --- Fading Out Phase ---
+        
+        // Fade out effect (Slow down the fade)
+        if (typeof this.animState.fadeAlpha === 'undefined') this.animState.fadeAlpha = 1.0;
+        
+        this.animState.fadeAlpha -= 0.02; // Slower fade
+        const currentAlpha = Math.max(0, this.animState.fadeAlpha);
+        
+        // Still update particles! (pass false to isBurning -> decays faster, no new spawns)
+        this.updateParticles(this.animState.burnParticles, false, Date.now());
+
+        // Draw Frame with fadeAlpha
+        ctx.clearRect(0, 0, width, height);
+        this.drawBurnFrame(ctx, width, height, rect, currentAlpha);
+        
+        // Final exit check: Card is gone AND no particles left
+        if (currentAlpha <= 0 && this.animState.burnParticles.length === 0) {
+           this.finishDestroy();
+           return; // Stop loop
         }
+      } else {
+        // --- Normal Burning Phase ---
+        
+        // Update State (Grow holes, spawn particles)
+        this.updateBurnState(rect);
+
+        // Draw Frame (Full opacity)
+        ctx.clearRect(0, 0, width, height);
+        this.drawBurnFrame(ctx, width, height, rect);
       }
 
-      if (!this.finishingDestroy) {
-        this.animState.rafId = canvas.requestAnimationFrame(loop);
-      }
+      this.animState.rafId = canvas.requestAnimationFrame(loop);
     };
 
     this.animState.rafId = canvas.requestAnimationFrame(loop);
@@ -656,8 +661,11 @@ Page({
     holes.forEach(h => {
       if (h.r < h.maxR) {
         h.r += h.growth;
-        // 随着半径变大，生长稍微变慢
-        if (h.r > 50) h.growth *= 0.995;
+        // 随着半径变大，生长稍微变慢，但设定最小速度防止停止
+        if (h.r > 50) {
+          h.growth *= 0.995;
+          if (h.growth < 0.2) h.growth = 0.2;
+        }
       }
 
       // 在边缘产生粒子
@@ -797,7 +805,7 @@ Page({
     // Draw flames with 'lighter' for intense look
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = opacity;
+    // ctx.globalAlpha = opacity; // Particles shouldn't fade with the card
     particles.forEach(p => {
       if (p.type === 'ash') return; // Draw ash normally later
 
@@ -821,7 +829,7 @@ Page({
 
     // Draw Ash (Normal blend)
     ctx.save();
-    ctx.globalAlpha = opacity;
+    // ctx.globalAlpha = opacity; // Particles shouldn't fade with the card
     particles.forEach(p => {
       if (p.type !== 'ash') return;
       const alpha = Math.max(0, p.life);
@@ -834,8 +842,8 @@ Page({
   },
 
   checkBurnCompletion(rect, elapsed) {
-    // 1. Time limit check (10s)
-    if (elapsed && elapsed > 10000) {
+    // 1. Time limit check (8s)
+    if (elapsed && elapsed > 8000) {
       return true;
     }
 
