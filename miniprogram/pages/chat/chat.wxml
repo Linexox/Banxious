@@ -16,6 +16,14 @@
     <view wx:if="{{loading}}" class="loading">
       <text>对方正在输入...</text>
     </view>
+    
+    <!-- 建议回复区域 -->
+    <view class="suggestions-area" wx:if="{{suggestions.length > 0 && !loading}}">
+        <view class="suggestion-chip" wx:for="{{suggestions}}" wx:key="index" bindtap="onSuggestionTap" data-text="{{item}}">
+            <text>{{item}}</text>
+        </view>
+    </view>
+
     <view style="height: 120rpx;"></view> <!-- Spacer for input area -->
   </scroll-view>
 
