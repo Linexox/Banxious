@@ -28,3 +28,7 @@ project.private.config.json
 
 # Dependencies
 node_modules/
+
+# python cache
+__pycache__/
+*.py[oc]
