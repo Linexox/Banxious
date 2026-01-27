@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL_NAME = 'deepseek'
+MODEL_NAME = 'zhipu'
 
 class ZhiPuSettings: # 'zhipu'
     PROJECT_NAME: str = "GreenBanana"

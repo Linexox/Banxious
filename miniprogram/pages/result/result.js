@@ -145,6 +145,12 @@ Page({
     });
   },
 
+  onToggleAnalysis() {
+    this.setData({
+      showProfessionalAnalysis: !this.data.showProfessionalAnalysis
+    });
+  },
+
   // Canvas Touch Handlers (Active during destroy mode)
   onCanvasTouchStart(e) {
     if (!this.data.isDestroying) return;

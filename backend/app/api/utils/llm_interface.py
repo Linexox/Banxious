@@ -15,3 +15,14 @@ class LLMClient(ABC):
         :return: The response dictionary from the API.
         """
         pass
+
+    @abstractmethod
+    def chat_completion_stream(
+        self, messages: List[Dict[str, str]],
+        thinking_enabled: bool = False
+    ):
+        """
+        Send a streaming chat completion request to the LLM provider.
+        Yields chunks of content.
+        """
+        pass

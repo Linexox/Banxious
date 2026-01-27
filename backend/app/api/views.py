@@ -1,11 +1,14 @@
 from fastapi import APIRouter, HTTPException, Body, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from app.api.utils.factory import get_llm_client
 from app.api.utils.psychology_knowledge import psychology_knowledge
 from app.storage.conversation_storage import save_message, get_history, save_card_cache, get_card_cache
 from app.templates.prompt_templates import PromptTemplates
+from config.settings import settings
 import json
+import asyncio
 
 import traceback
 
@@ -91,56 +94,65 @@ async def chat(
     thinking_enabled: bool = Body(False, embed=True)
 ):
     """
-    Main chat endpoint for GreenBanana.
+    Main chat endpoint for GreenBanana (Streaming).
     """
     try:
         # 1. Save User Message
         current_msg = save_message(user_id, "user", content)
         
-        # 2. Retrieve Knowledge
-        knowledge = psychology_knowledge.search(content)
-        
-        # 3. Build Messages
-        # Start with System Prompt based on mode
-        if mode == "professional":
-            system_prompt = PromptTemplates.PROFESSIONAL_SYSTEM_PROMPT
-        else:
-            system_prompt = PromptTemplates.STANDARD_SYSTEM_PROMPT
-            
-        if knowledge:
-            system_prompt += f"\n\n相关心理学知识库：\n{knowledge}"
-            
-        messages = [{"role": "system", "content": system_prompt}]
-        
-        # Add History
-        history = get_history(user_id, limit=20) 
-        for msg in reversed(history):
-            if msg.id != current_msg.id: # Exclude current message to avoid duplication
-                 messages.append({"role": msg.role, "content": msg.content})
-        
-        # Add Current User Message
-        messages.append({"role": "user", "content": content})
-        
-        # 4. Call LLM
-        client = get_llm_client()
-        response = client.chat_completion(messages, thinking_enabled=thinking_enabled)
-        
-        if "error" in response:
-             raise HTTPException(status_code=500, detail=response["error"])
-        
-        # Extract AI content (this depends on the specific LLM response structure, 
-        # Zhipu usually follows OpenAI format)
-        ai_content = ""
-        if "choices" in response and len(response["choices"]) > 0:
-            ai_content = response["choices"][0]["message"]["content"]
-            
-        # 5. Save AI Message
-        if ai_content:
-            save_message(user_id, "assistant", ai_content)
-            # Trigger background card generation
-            background_tasks.add_task(generate_and_cache_card_task, user_id)
-            
-        return response
+        async def event_generator():
+            try:
+                # 2. Retrieve Knowledge
+                knowledge = psychology_knowledge.search(content)
+                
+                # 3. Build Messages
+                # Start with System Prompt based on mode
+                if mode == "professional":
+                    system_prompt = PromptTemplates.PROFESSIONAL_SYSTEM_PROMPT
+                else:
+                    system_prompt = PromptTemplates.STANDARD_SYSTEM_PROMPT
+                    
+                if knowledge:
+                    system_prompt += f"\n\n相关心理学知识库：\n{knowledge}"
+                    
+                messages = [{"role": "system", "content": system_prompt}]
+                
+                # Add History
+                history = get_history(user_id, limit=20) 
+                for msg in reversed(history):
+                    if msg.id != current_msg.id: # Exclude current message to avoid duplication
+                         messages.append({"role": msg.role, "content": msg.content})
+                
+                # Add Current User Message
+                messages.append({"role": "user", "content": content})
+                
+                print(f"[DEBUG] Sending messages to LLM: {json.dumps(messages, ensure_ascii=False)}") # Debug log
+
+                # 4. Call LLM (Stream)
+                client = get_llm_client()
+                full_content = ""
+                
+                print(f"[DEBUG] Starting stream with {settings.LLM_PROVIDER}")
+                for chunk in client.chat_completion_stream(messages, thinking_enabled=thinking_enabled):
+                    if chunk.startswith("[ERROR]"):
+                         yield chunk.encode('utf-8')
+                         return
+                    
+                    full_content += chunk
+                    yield chunk.encode('utf-8')
+                
+                # 5. Save AI Message
+                if full_content:
+                    save_message(user_id, "assistant", full_content)
+                    # Trigger background card generation
+                    asyncio.create_task(generate_and_cache_card_task(user_id))
+                    
+            except Exception as e:
+                traceback.print_exc()
+                yield f"[ERROR] {str(e)}".encode('utf-8')
+
+        return StreamingResponse(event_generator(), media_type="text/plain")
+
     except Exception as e:
         traceback.print_exc() # Print full traceback to console
         raise HTTPException(status_code=500, detail=str(e))
