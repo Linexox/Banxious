@@ -1,14 +1,25 @@
 <view class="container">
   <view class="header">
-    <text class="title">Mood Lab</text>
-    <text class="subtitle">在这里，把焦虑变成卡片</text>
+    <text class="title">蕉个猫绿</text>
   </view>
 
-  <view class="machine-wrapper">
-    <card-machine status="idle"></card-machine>
+  <view class="cats-container">
+    <block wx:for="{{cats}}" wx:key="id">
+      <view 
+        class="cat-item {{selectedCatId === item.id ? 'active' : ''}}" 
+        bindtap="onSelectCat" 
+        data-id="{{item.id}}"
+      >
+        <!-- Placeholder for Cat Image -->
+        <view class="cat-placeholder" style="background-color: {{item.color}};">
+          <text class="cat-face">🐱</text>
+        </view>
+        <!-- <image class="cat-image" src="{{item.image}}" mode="aspectFit"></image> -->
+      </view>
+    </block>
   </view>
 
-  <view class="action-area">
-    <button class="start-btn" bindtap="onStart">开始倾诉</button>
+  <view class="footer">
+    <text class="hint-text">点击一只香蕉猫开始倾听</text>
   </view>
 </view>

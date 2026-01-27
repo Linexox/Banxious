@@ -3,27 +3,44 @@ const api = require('../../utils/api');
 
 Page({
   data: {
-
+    cats: [
+      { id: 'cat1', color: '#8BC34A', name: 'Chill Cat' },
+      { id: 'cat2', color: '#4CAF50', name: 'Listen Cat' },
+      { id: 'cat3', color: '#009688', name: 'Wise Cat' }
+    ],
+    selectedCatId: null
   },
-  onStart() {
-    console.log('Attempting to navigate to chat page...');
-    api.logInfo('User clicked Start Chatting', { timestamp: Date.now() });
+
+  onLoad() {
+    // Optional: Pre-select the middle cat? Or none.
+  },
+
+  onSelectCat(e) {
+    const catId = e.currentTarget.dataset.id;
+    this.setData({ selectedCatId: catId });
+    
+    // Slight delay for visual feedback before navigation
+    setTimeout(() => {
+      this.navigateToChat(catId);
+    }, 300);
+  },
+
+  navigateToChat(catId) {
+    api.logInfo('User selected cat', { catId });
 
     wx.navigateTo({
-      url: '/pages/chat/chat',
+      url: `/pages/chat/chat?catId=${catId}`,
       success: () => {
-        console.log('Navigation success');
-        api.logInfo('Navigated to Chat Page successfully');
+        // Reset selection when returning?
+        // this.setData({ selectedCatId: null }); 
       },
       fail: (err) => {
         console.error('Navigation failed', err);
-        api.logError('Failed to navigate to Chat Page', { error: err });
         wx.showToast({
-          title: '跳转失败: ' + err.errMsg,
-          icon: 'none',
-          duration: 3000
+          title: '跳转失败',
+          icon: 'none'
         });
       }
-    })
+    });
   }
 })

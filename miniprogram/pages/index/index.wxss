@@ -1,5 +1,5 @@
 page {
-  background-color: #FFFDF5; /* Day Mode Background */
+  background-color: #F0FFF0; /* Light Green / Milk Green */
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -11,7 +11,7 @@ page {
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  padding: 100rpx 40rpx;
+  padding: 120rpx 40rpx;
   box-sizing: border-box;
 }
 
@@ -20,28 +20,61 @@ page {
 }
 
 .title {
+  font-size: 72rpx;
+  font-weight: bold;
+  color: #1B262C; /* Dark Green/Black */
+  letter-spacing: 4rpx;
+}
+
+.cats-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  width: 100%;
+  padding: 0 20rpx;
+}
+
+.cat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.3s ease;
+  opacity: 0.8;
+}
+
+.cat-item.active {
+  transform: scale(1.2);
+  opacity: 1;
+}
+
+.cat-placeholder {
+  width: 160rpx;
+  height: 240rpx;
+  border-radius: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10rpx 20rpx rgba(0,0,0,0.1);
+}
+
+.cat-face {
   font-size: 60rpx;
-  font-weight: bold;
-  color: #333;
-  display: block;
-  margin-bottom: 20rpx;
 }
 
-.subtitle {
-  font-size: 32rpx;
-  color: #666;
+.footer {
+  text-align: center;
+  margin-bottom: 40rpx;
 }
 
-.machine-wrapper {
-  margin-top: 50rpx;
+.hint-text {
+  font-size: 28rpx;
+  color: #4CAF50; /* Accent Green */
+  letter-spacing: 2rpx;
+  animation: pulse 2s infinite;
 }
 
-.start-btn {
-  background-color: #B8E986; /* Day Mode Accent */
-  color: #333;
-  border-radius: 50rpx;
-  padding: 20rpx 80rpx;
-  font-size: 36rpx;
-  font-weight: bold;
-  box-shadow: 0 10rpx 20rpx rgba(184, 233, 134, 0.4);
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
 }

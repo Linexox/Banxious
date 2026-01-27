@@ -1,37 +1,80 @@
 <view class="container">
-  <!-- 顶部模式切换 -->
-  <view class="mode-switch">
-    <view class="mode-btn {{mode === 'concise' ? 'active' : ''}}" bindtap="onModeChange" data-mode="concise">
-      <text>简洁模式</text>
-    </view>
-    <view class="mode-btn {{mode === 'professional' ? 'active' : ''}}" bindtap="onModeChange" data-mode="professional">
-      <text>专业模式</text>
-    </view>
-  </view>
-
-  <scroll-view class="chat-list" scroll-y>
-    <block wx:for="{{messages}}" wx:key="index">
-      <chat-message msg="{{item}}"></chat-message>
-    </block>
-    <view wx:if="{{loading}}" class="loading">
-      <text>对方正在输入...</text>
+  
+  <!-- 1. Healing Progress Bar -->
+  <view class="progress-container">
+    <image class="progress-icon left" src="../../images/banana_green.png" mode="aspectFit" wx:if="{{false}}"></image> <!-- Placeholder check -->
+    <view class="progress-icon-placeholder left" style="background-color: {{progress < 100 ? '#4CAF50' : '#FFEB3B'}}"></view>
+    
+    <view class="progress-track">
+      <view class="progress-fill" style="width: {{progress}}%;"></view>
     </view>
     
-    <!-- 建议回复区域 -->
-    <view class="suggestions-area" wx:if="{{suggestions.length > 0 && !loading}}">
-        <view class="suggestion-chip" wx:for="{{suggestions}}" wx:key="index" bindtap="onSuggestionTap" data-text="{{item}}">
-            <text>{{item}}</text>
-        </view>
-    </view>
+    <view class="progress-icon-placeholder right" style="background-color: #FFEB3B"></view>
+  </view>
 
-    <view style="height: 120rpx;"></view> <!-- Spacer for input area -->
+  <!-- 2. Main Chat Area -->
+  <scroll-view 
+    class="chat-list" 
+    scroll-y 
+    scroll-into-view="{{toView}}"
+    scroll-with-animation
+    enable-flex="true"
+  >
+    <view class="chat-content">
+      <block wx:for="{{messages}}" wx:key="index">
+        <view class="chat-message-item" wx:if="{{item.content || item.role === 'user'}}">
+          <chat-message msg="{{item}}"></chat-message>
+        </view>
+      </block>
+
+      <view class="ai-typing-container" wx:if="{{loading && messages[messages.length-1].role === 'assistant' && !messages[messages.length-1].content}}">
+         <view class="typing-bubble left">
+            <view class="dot"></view><view class="dot"></view><view class="dot"></view>
+         </view>
+      </view>
+      
+      <!-- 3. Suggestions Layer (Moved into flow) -->
+      <view class="suggestions-layer" wx:if="{{suggestions.length > 0 && !loading}}">
+        <view 
+          class="suggestion-bubble" 
+          wx:for="{{suggestions}}" 
+          wx:key="index" 
+          bindtap="onSuggestionTap" 
+          data-text="{{item}}"
+        >
+          <text>{{item}}</text>
+        </view>
+      </view>
+      
+      <view id="bottom" style="height: 1px; width: 100%"></view>
+    </view>
   </scroll-view>
 
-  <view class="input-area">
-    <chat-input bind:send="onSend" disabled="{{loading}}"></chat-input>
+  <!-- 4. Cats Layer -->
+   <view class="user-typing-layer" wx:if="{{isUserTyping}}">
+      <view class="typing-bubble right">
+        <view class="dot"></view><view class="dot"></view><view class="dot"></view>
+      </view>
+   </view>
+
+  <!-- 4. Cats Layer -->
+  <view class="cats-layer">
+    <view class="ai-cat-container">
+      <view class="cat-avatar ai {{isTalking ? 'talking' : ''}}">
+        <text>🐱</text>
+      </view>
+    </view>
+
+    <view class="user-cat-container">
+      <view class="cat-avatar user {{isUserTyping ? 'typing' : ''}}">
+        <text>😺</text>
+      </view>
+    </view>
   </view>
 
-  <view class="generate-btn" bindtap="onGenerateCard">
-    <text>生成反焦虑卡片</text>
+  <!-- 5. Input Area -->
+  <view class="input-area">
+    <chat-input bind:send="onSend" bind:typing="onUserTyping" disabled="{{loading}}"></chat-input>
   </view>
+
 </view>

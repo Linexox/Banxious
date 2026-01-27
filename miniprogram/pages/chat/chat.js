@@ -1,64 +1,99 @@
-const api = require('../../utils/api');
-// const util = require('../../utils/util');
+const api = require('../../utils/api.js');
+const app = getApp();
 
 Page({
   data: {
-    messages: [
-      { role: 'assistant', content: '嗨！我是 Mood Lab 的研究员。这里很安全，你可以告诉我任何让你感到“蕉绿”的事情。' }
-    ],
-    userId: 'test_user_' + Date.now(), // 简单的用户ID生成
+    messages: [],
     loading: false,
-    mode: 'concise', // 'concise' | 'professional'
-    suggestions: [] // Add suggestions state
+    toView: '',
+    userInput: '',
+    userId: '',
+    mode: 'chat', // 'chat' or 'card'
+    suggestions: [],
+    progress: 0,
+    isTalking: false,
+    isUserTyping: false
   },
 
-  onLoad() {
-
-  },
-
-  onSuggestionTap(e) {
-    const content = e.currentTarget.dataset.text;
-    if (!content) return;
-
-    // Construct event object to mimic chat-input send event
-    const event = {
-      detail: {
-        content: content
-      }
-    };
-    this.onSend(event);
-  },
-
-  onModeChange(e) {
-    const mode = e.currentTarget.dataset.mode;
-    if (mode === this.data.mode) return;
-
-    this.setData({ mode });
-    wx.showToast({
-      title: mode === 'professional' ? '已切换至专业模式' : '已切换至简洁模式',
-      icon: 'none'
+  onLoad(options) {
+    this.setData({
+      userId: (app.globalData && app.globalData.userId) || 'user_' + Date.now()
     });
+    
+    // Initial welcome message if needed
+    if (this.data.messages.length === 0) {
+      this.addMessage('assistant', '你好！我是你的绿色香蕉猫，今天感觉怎么样？');
+      this.setData({
+        suggestions: ['感觉有点焦虑', '想聊聊最近的压力', '只是来看看']
+      });
+    }
   },
 
   onSend(e) {
-    const content = e.detail.content;
-    if (!content) return;
+    const content = e.detail.value || e.detail;
+    if (!content || !content.trim()) return;
 
-    const newMsg = { role: 'user', content };
-    // Add placeholder for assistant immediately
-    const assistantMsg = { role: 'assistant', content: '' };
-    const currentMessages = [...this.data.messages, newMsg, assistantMsg];
-    const assistantMsgIndex = currentMessages.length - 1;
+    this.addMessage('user', content);
+    
+    // Clear suggestions
+    this.setData({ suggestions: [], isUserTyping: false });
+    
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer);
+    }
+
+    this.processChat(content);
+  },
+
+  onUserTyping(e) {
+    if (!this.data.isUserTyping) {
+      this.setData({ isUserTyping: true });
+    }
+    
+    // Clear existing timer
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer);
+    }
+    
+    // Set new timer to hide typing status after 1.5s of inactivity
+    this.typingTimer = setTimeout(() => {
+      this.setData({ isUserTyping: false });
+    }, 1500);
+  },
+
+  onSuggestionTap(e) {
+    const text = e.currentTarget.dataset.text;
+    this.onSend({ detail: text });
+  },
+
+  addMessage(role, content) {
+    const messages = this.data.messages;
+    messages.push({ role, content });
+    this.setData({ messages });
+    this.scrollToBottom();
+  },
+
+  processChat(content) {
+    const messages = this.data.messages;
+    // Add placeholder for AI
+    messages.push({ role: 'assistant', content: '' });
+    const assistantMsgIndex = messages.length - 1;
+    
+    // Update Progress (Mock logic: +10% per turn, max 100%)
+    let newProgress = this.data.progress + 10;
+    if (newProgress > 100) newProgress = 100;
 
     this.setData({
-      messages: currentMessages,
+      messages: messages,
       loading: true,
-      suggestions: [] // Clear suggestions when sending new message
+      suggestions: [],
+      progress: newProgress,
+      isTalking: true // Start AI talking animation
     });
 
     this.scrollToBottom();
 
-    // Initialize streaming state
+    // Stream Setup
     this.streamBuffer = '';
     this.isTyping = false;
     this.networkFinished = false;
@@ -71,26 +106,17 @@ Page({
       onComplete: () => {
         this.networkFinished = true;
         this.processStreamBuffer(assistantMsgIndex);
+        this.setData({ isTalking: false }); // Stop AI talking
+        
+        // If progress is full, maybe show completion toast?
+        if (newProgress >= 100) {
+           // TODO: Handle completion logic
+        }
       },
       onError: (err) => {
         console.error('[Chat Error]:', err);
         this.networkFinished = true;
-        this.setData({ loading: false });
-
-        let title = '网络出小差了';
-        if (err.errMsg && err.errMsg.includes('url not in domain list')) {
-          title = '请在详情中关闭域名校验';
-        } else if (err.errMsg) {
-          title += ': ' + err.errMsg;
-        } else if (err.error) {
-          title += ': ' + err.error;
-        }
-
-        wx.showToast({
-          title: title,
-          icon: 'none',
-          duration: 3000
-        });
+        this.setData({ loading: false, isTalking: false });
       }
     });
   },
@@ -98,180 +124,181 @@ Page({
   processStreamBuffer(msgIndex) {
     if (this.isTyping) return;
     this.isTyping = true;
+    
+    const TAG_S = '|||SUGGESTIONS=';
+    const TAG_NO_S = '|||SUGGESTION=';
 
-    const typeNext = () => {
-      if (this.streamBuffer.length === 0) {
-        this.isTyping = false;
-        // Only stop loading when network is done AND buffer is empty
-        if (this.networkFinished) {
-          this.setData({ loading: false });
-        }
-        return;
-      }
-
-      // Adaptive typing speed/chunk size
-      let chunkSize = 1;
-      if (this.streamBuffer.length > 50) chunkSize = 5;
-      else if (this.streamBuffer.length > 20) chunkSize = 2;
-
-      let chunk = this.streamBuffer.slice(0, chunkSize);
-      this.streamBuffer = this.streamBuffer.slice(chunkSize);
-
-      // Check for suggestions pattern in the chunk or accumulated content
-      // Since chunking might split the pattern, we should probably check the full accumulated content in the buffer
-      // But we are removing from buffer.
-      // Better strategy: Append chunk to current message content, THEN check regex on the full content?
-      // No, that would cause the raw pattern to flash on screen.
-
-      // Alternative: Peek ahead in buffer?
-      // Or simpler: Just append everything, and if we detect the start of the pattern, we stop "typing" and wait for the rest?
-
-      // Let's try: append to a temporary "displayBuffer" and check regex.
-      // Actually, the pattern is at the END. 
-      // While streaming, we don't know if we are at the end until networkFinished is true.
-
-      const currentContent = this.data.messages[msgIndex].content + chunk;
-
-      // Detect suggestions block: |||SUGGESTIONS=...|||
-      // Regex explanation:
-      // \|\|\|\s*SUGGESTIONS\s* - Match start marker
-      // (?:=|:)?\s* - Optional equals sign or colon
-      // ([\s\S]*?) - Capture ANY content (non-greedy) until...
-      // \s*\|\|\| - End marker
-      const suggestionRegex = /\|\|\|\s*SUGGESTIONS\s*(?:=|:)?\s*([\s\S]*?)\s*\|\|\|/;
-      const match = currentContent.match(suggestionRegex);
-
-      let displayContent = currentContent;
-      let foundSuggestions = null;
-
-      if (match) {
-        // Found something that looks like the suggestion block
-        let rawSuggestions = match[1].trim();
-        console.log('[Chat] Raw suggestions captured:', rawSuggestions);
-
-        try {
-          // Attempt 1: Standard JSON parse
-          foundSuggestions = JSON.parse(rawSuggestions);
-        } catch (e1) {
-          console.warn('[Chat] Failed standard JSON parse, attempting repair...');
-
-          // Attempt 2: Missing brackets? e.g. "A", "B"
-          // Try wrapping in []
-          try {
-            foundSuggestions = JSON.parse(`[${rawSuggestions}]`);
-          } catch (e2) {
-            // Attempt 3: Missing opening quote? e.g. A", "B"
-            // Or partial missing quotes.
-            // Let's try to reconstruct from comma separated strings
-
-            // Heuristic: Split by "," or ", "
-            // But first, if it doesn't start with [, assume it's a list.
-            if (!rawSuggestions.startsWith('[')) {
-              // Check if it's like: Item 1, Item 2
-              // Or: "Item 1", "Item 2"
-
-              // Simple fallback: Split by double quote sequence ", "
-              if (rawSuggestions.includes('", "')) {
-                // It has quotes structure
-                // Remove leading/trailing quotes if they exist partially
-                let clean = rawSuggestions.replace(/^"?/, '').replace(/"?$/, '');
-                foundSuggestions = clean.split('", "');
-              } else {
-                // No clear quote structure, maybe just text separated by commas?
-                // Or maybe Chinese commas?
-                // This is risky as it might split sentences. 
-                // But for now, if we failed JSON, it's our best bet.
-                // foundSuggestions = rawSuggestions.split(/,|，/); 
-
-                // Actually, let's look at the user case:
-                // 就是我试图表达想法...
-                // It had no quotes at start.
-                // So wrapping in ["..."] might work if we escape internal quotes?
-                // Too complex.
-
-                // Let's try wrapping in [" and "] if it failed previous attempts
-                try {
-                  foundSuggestions = JSON.parse(`["${rawSuggestions.replace(/", "/g, '", "')}"]`);
-                } catch (e3) {
-                  console.error('[Chat] All parsing attempts failed');
-                }
-              }
+    const processNextChar = () => {
+      if (this.streamBuffer.length > 0) {
+        const char = this.streamBuffer[0];
+        this.streamBuffer = this.streamBuffer.slice(1);
+        
+        if (this.isParsingSuggestions) {
+            this.suggestionText += char;
+            
+            // Check for closing tag |||
+            if (this.suggestionText.endsWith('|||')) {
+                // Found closing tag!
+                // Remove the trailing |||
+                this.suggestionText = this.suggestionText.slice(0, -3);
+                this.isParsingSuggestions = false;
+                // Trigger processing
+                this.checkSuggestions(this.suggestionText, true);
+                this.suggestionText = '';
+                this.pendingBuffer = ''; 
             }
-          }
+        } else {
+            const potential = this.pendingBuffer + char;
+            
+            if (potential === TAG_S || potential === TAG_NO_S) {
+                // Full match! Switch mode
+                this.isParsingSuggestions = true;
+                this.pendingBuffer = ''; // Consumed the tag
+                this.suggestionText = '';
+            } else if (TAG_S.startsWith(potential) || TAG_NO_S.startsWith(potential)) {
+                // It is a valid prefix, hold it
+                this.pendingBuffer = potential;
+            } else {
+                // Not a match. Flush pending buffer + char to UI
+                const contentToFlush = this.pendingBuffer + char;
+                this.pendingBuffer = '';
+                
+                const messages = this.data.messages;
+                messages[msgIndex].content += contentToFlush;
+                
+                this.setData({
+                  messages,
+                  loading: false 
+                });
+                this.scrollToBottom();
+            }
         }
 
-        if (foundSuggestions && !Array.isArray(foundSuggestions)) {
-          foundSuggestions = null; // Must be an array
-        }
+        // Adaptive speed
+        let delay = 30;
+        if (this.streamBuffer.length > 50) delay = 10;
+        else if (this.streamBuffer.length > 20) delay = 20;
 
-        // Remove from display content
-        displayContent = currentContent.replace(match[0], '');
+        setTimeout(processNextChar, delay);
       } else {
-        // Check for PARTIAL match at the end of string to prevent flashing
-        // e.g. "|||SUG"
-        const partialRegex = /\|\|\|\s*S?U?G?G?E?S?T?I?O?N?S?$/;
-        if (partialRegex.test(currentContent)) {
-          // We might be typing the tag. 
-          // Don't update displayContent yet? 
-          // Actually, updating is fine, we just might see "|||" briefly.
-        }
-      }
-
-      // Update data
-      if (foundSuggestions) {
-        this.setData({
-          [`messages[${msgIndex}].content`]: displayContent,
-          suggestions: foundSuggestions
-        });
-        // Stop typing rest of the buffer if it was just the suggestions
-        this.streamBuffer = '';
         this.isTyping = false;
-        this.setData({ loading: false });
-        this.scrollToBottom();
-        return;
-      } else {
-        this.setData({
-          [`messages[${msgIndex}].content`]: displayContent
-        }, () => {
-          this.scrollToBottom();
-        });
-      }
+        if (!this.networkFinished) {
+           // Wait for more chunks
+        } else {
+           // Finished completely
+           
+           // 1. Flush any remaining pending buffer that wasn't a delimiter
+           if (this.pendingBuffer) {
+               const messages = this.data.messages;
+               messages[msgIndex].content += this.pendingBuffer;
+               this.pendingBuffer = '';
+               this.setData({ messages });
+           }
 
-      // 30ms per update for smooth typewriter effect
-      setTimeout(typeNext, 30);
+           // 2. Process suggestions if any (if stream ended abruptly)
+           if (this.suggestionText) {
+               // If we were parsing, try to extract whatever we got
+               // But usually we expect ||| at end. 
+               // If network finished and we are still parsing, maybe the closing tag was missing?
+               this.checkSuggestions(this.suggestionText, true);
+           } else {
+               // Fallback: Check content if no delimiter was found (old format)
+               this.checkSuggestions(this.data.messages[msgIndex].content);
+           }
+        }
+      }
     };
 
-    typeNext();
+    processNextChar();
   },
 
   scrollToBottom() {
-    wx.createSelectorQuery().select('.chat-list').boundingClientRect(function (rect) {
-      wx.pageScrollTo({
-        scrollTop: rect.height,
-        duration: 300
-      })
-    }).exec()
+    // Force reset toView to trigger scroll even if id hasn't changed
+    this.setData({ toView: '' }, () => {
+       this.setData({ toView: 'bottom' });
+    });
+  },
+
+  checkSuggestions(content, isRawData = false) {
+    let suggestions = [];
+    
+    if (isRawData) {
+        // Content is the raw suggestion text after delimiter
+        try {
+            // Try parsing as JSON first
+            suggestions = JSON.parse(content);
+        } catch (e) {
+            console.warn('Failed to parse suggestions as JSON:', content);
+            // Fallback: simple split if it looks like [a, b]
+            const match = content.match(/\[(.*?)\]/);
+            if (match && match[1]) {
+                suggestions = match[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+            } else {
+                // Last resort: split by newline or pipe if JSON fails?
+                // Assuming it's JSON or bracketed list based on backend
+            }
+        }
+    } else {
+        // Robust check for marker or bracketed list
+        let found = false;
+        
+        // 1. Try marker match |||SUGGESTION(S)=...|||
+        const markerRegex = /\|\|\|SUGGESTIONS?=(.*?)\|\|\|/s;
+        const match = content.match(markerRegex);
+        
+        if (match && match[1]) {
+             let raw = match[1];
+             try {
+                 suggestions = JSON.parse(raw);
+             } catch (e) {
+                 // Try loose parsing
+                 const m = raw.match(/\[(.*?)\]/);
+                 if (m && m[1]) {
+                    suggestions = m[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+                 }
+             }
+             
+             // Remove from message
+             const messages = this.data.messages;
+             const lastMsg = messages[messages.length - 1];
+             lastMsg.content = lastMsg.content.replace(markerRegex, '').trim();
+             this.setData({ messages });
+             found = true;
+        }
+
+        if (!found) {
+            // 2. Fallback to just [ ... ]
+            const bracketMatch = content.match(/\[(.*?)\]/);
+            if (bracketMatch && bracketMatch[1]) {
+                let raw = bracketMatch[1];
+                suggestions = raw.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+                
+                // Remove from message if found in content mode
+                const messages = this.data.messages;
+                const lastMsg = messages[messages.length - 1];
+                lastMsg.content = lastMsg.content.replace(/\[.*?\]/, '').trim();
+                this.setData({ messages });
+            }
+        }
+    }
+
+    // Filter and Set
+    if (Array.isArray(suggestions)) {
+        suggestions = suggestions.filter(s => s);
+        if (suggestions.length > 0) {
+            this.setData({ 
+                suggestions 
+            }, () => {
+                this.scrollToBottom();
+            });
+        }
+    }
   },
 
   onGenerateCard() {
-    console.log('Navigating to result page with userId:', this.data.userId);
-    api.logInfo('User clicked Generate Card', { userId: this.data.userId });
-
-    wx.navigateTo({
-      url: `/pages/result/result?userId=${this.data.userId}`,
-      success: () => {
-        console.log('Navigate to result success');
-        api.logInfo('Navigated to Result Page successfully');
-      },
-      fail: (err) => {
-        console.error('Navigate to result failed', err);
-        api.logError('Navigate to result failed', { err });
-        wx.showToast({
-          title: '跳转失败: ' + (err.errMsg || '未知错误'),
-          icon: 'none',
-          duration: 3000
-        });
-      }
-    })
+      // Navigate to Result Page
+      wx.navigateTo({
+          url: '/pages/result/result'
+      });
   }
-})
+});

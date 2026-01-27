@@ -1,42 +1,41 @@
 .message-container {
   display: flex;
-  margin-bottom: 20rpx;
+  margin-bottom: 16rpx; /* Reduced margin */
   padding: 0 20rpx;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .message-container.user {
-  flex-direction: row-reverse;
+  justify-content: flex-end; /* Align right */
 }
 
-.avatar {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  background-color: #eee;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 40rpx;
-  margin: 0 10rpx;
+.message-container.assistant {
+  justify-content: flex-start; /* Align left */
 }
 
 .content {
-  max-width: 60%;
-  padding: 20rpx;
-  border-radius: 20rpx;
+  max-width: 70%;
+  padding: 20rpx 24rpx;
   font-size: 28rpx;
   line-height: 1.5;
+  position: relative;
+  word-wrap: break-word;
 }
 
+/* User Bubble (Dark/Green, Right) */
 .user .content {
-  background-color: #B8E986; /* Day Mode User Color */
-  color: #333;
-  border-top-right-radius: 4rpx;
+  background-color: #4CAF50; /* Match User Cat Color */
+  color: #fff;
+  border-radius: 20rpx 20rpx 4rpx 20rpx; /* Bottom-right corner sharp */
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.1);
 }
 
+/* AI Bubble (Light/White, Left) */
 .assistant .content {
   background-color: #FFF;
   color: #333;
-  border-top-left-radius: 4rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+  border-radius: 20rpx 20rpx 20rpx 4rpx; /* Bottom-left corner sharp */
+  border: 1rpx solid #eee;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
 }

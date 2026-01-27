@@ -2,6 +2,7 @@ from typing import AsyncGenerator
 import json
 import asyncio
 import traceback
+import re
 from app.storage.conversation_storage import save_message, get_history
 from app.api.utils.psychology_knowledge import psychology_knowledge
 from app.templates.prompt_templates import PromptTemplates

@@ -1,8 +1,5 @@
 <view class="message-container {{msg.role === 'user' ? 'user' : 'assistant'}}">
-  <view class="avatar">
-    <text wx:if="{{msg.role === 'user'}}">😠</text>
-    <text wx:else>🍌</text>
-  </view>
+  <!-- Avatar removed as we use the big cats at the bottom -->
   <view class="content">
     <text>{{msg.content}}</text>
   </view>

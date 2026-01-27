@@ -13,6 +13,7 @@ Component({
       this.setData({
         inputValue: e.detail.value
       });
+      this.triggerEvent('typing', { value: e.detail.value });
     },
     onSend() {
       if (!this.data.inputValue.trim()) return;
