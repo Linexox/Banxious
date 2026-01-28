@@ -3,7 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL_NAME = 'zhipu'
+MODEL_NAME = 'deepseek'
+# MODEL_NAME = 'zhipu'
 
 class ZhiPuSettings: # 'zhipu'
     PROJECT_NAME: str = "GreenBanana"
@@ -20,7 +21,7 @@ class DeepseekR1Settings: # 'deepseek'
     PROJECT_NAME: str = "GreenBanana"
     
     # LLM Configuration
-    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "sk-a7a902cebc234988b0b3746c837435c9")
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "sk-b642fdd51792455eb03929986cb3ee2e")
     LLM_PROVIDER: str = "deepseek"
     LLM_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
     

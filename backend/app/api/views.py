@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException, Body, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from app.storage.conversation_storage import save_message, get_card_cache
-from app.services.card_service import generate_and_cache_card_task
+from app.storage.conversation_storage import save_message
+from app.services.card_service import get_or_create_card
 from app.services.chat_service import ChatService
 import json
 import asyncio
@@ -66,19 +66,7 @@ async def generate_card(
         print(f"\n[DEBUG] >>> Received Generate Card Request")
         print(f"[DEBUG] User ID: {user_id}")
         
-        # 1. Try cache first
-        cached_json = get_card_cache(user_id)
-        if cached_json:
-            print(f"[DEBUG] Cache hit for {user_id}")
-            try:
-                return json.loads(cached_json)
-            except json.JSONDecodeError:
-                print(f"[DEBUG] Cached JSON invalid, regenerating...")
-        
-        print(f"[DEBUG] Cache miss for {user_id}, generating now...")
-        
-        # 2. Fallback to immediate generation
-        result = await generate_and_cache_card_task(user_id)
+        result = await get_or_create_card(user_id)
         
         if result and "error" not in result:
              return result

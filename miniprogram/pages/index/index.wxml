@@ -22,4 +22,17 @@
   <view class="footer">
     <text class="hint-text">点击一只香蕉猫开始倾听</text>
   </view>
+
+  <!-- Walking Cat Animation Layer -->
+  <view 
+    class="walking-cat-container" 
+    wx:if="{{isAnimating}}"
+    style="left: {{catPos.left}}px; top: {{catPos.top}}px; transform: scale({{catScale}});"
+  >
+    <image 
+        class="walking-cat-image" 
+        src="{{walkingCatUrl}}" 
+        mode="aspectFit"
+    ></image>
+  </view>
 </view>

@@ -1,4 +1,5 @@
 const api = require('../../utils/api');
+const app = getApp();
 
 Page({
   data: {
@@ -46,10 +47,19 @@ Page({
   // -------------------------------------------------------------------------
 
   onLoad(options) {
-    if (options.userId) {
-      this.setData({ userId: options.userId });
+    const userId = options.userId || (app.globalData && app.globalData.userId);
+    
+    if (userId) {
+      this.setData({ userId: userId });
       this.generateCard();
+    } else {
+      console.error('[Result] No userId provided');
+      this.setData({
+        loading: false,
+        errorMsg: '无法获取用户信息，请返回重试'
+      });
     }
+
     // Canvas context references
     this.animationCanvas = null;
     this.animationCtx = null;

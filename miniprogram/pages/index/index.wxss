@@ -1,29 +1,22 @@
-page {
-  background-color: #F0FFF0; /* Light Green / Milk Green */
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
+/** index.wxss **/
 .container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  height: 100%;
-  padding: 120rpx 40rpx;
+  padding-top: 100rpx;
+  height: 100vh;
   box-sizing: border-box;
+  background-color: #f8f8f8;
 }
 
 .header {
-  text-align: center;
+  margin-bottom: 60rpx;
 }
 
 .title {
-  font-size: 72rpx;
+  font-size: 48rpx;
   font-weight: bold;
-  color: #1B262C; /* Dark Green/Black */
-  letter-spacing: 4rpx;
+  color: #333;
 }
 
 .cats-container {
@@ -31,30 +24,29 @@ page {
   flex-direction: row;
   justify-content: space-around;
   width: 100%;
-  padding: 0 20rpx;
+  padding: 0 40rpx;
 }
 
 .cat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  transition: all 0.3s ease;
-  opacity: 0.8;
+  transition: transform 0.2s;
 }
 
 .cat-item.active {
-  transform: scale(1.2);
-  opacity: 1;
+  transform: scale(1.1);
 }
 
 .cat-placeholder {
   width: 160rpx;
-  height: 240rpx;
-  border-radius: 80rpx;
+  height: 160rpx;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10rpx 20rpx rgba(0,0,0,0.1);
+  margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.1);
 }
 
 .cat-face {
@@ -62,19 +54,27 @@ page {
 }
 
 .footer {
-  text-align: center;
-  margin-bottom: 40rpx;
+  margin-top: auto;
+  margin-bottom: 100rpx;
 }
 
 .hint-text {
   font-size: 28rpx;
-  color: #4CAF50; /* Accent Green */
-  letter-spacing: 2rpx;
-  animation: pulse 2s infinite;
+  color: #888;
 }
 
-@keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+/* Walking Cat Animation */
+.walking-cat-container {
+  position: fixed;
+  width: 200rpx;
+  height: 200rpx;
+  z-index: 999;
+  transition: all 1s ease-in-out; /* Smooth transition for position and scale */
+  pointer-events: none;
+  /* Start centered to the container if no pos set, but we set pos inline */
+}
+
+.walking-cat-image {
+  width: 100%;
+  height: 100%;
 }

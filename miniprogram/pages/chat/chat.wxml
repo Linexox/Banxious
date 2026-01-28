@@ -12,6 +12,45 @@
     <view class="progress-icon-placeholder right" style="background-color: #FFEB3B"></view>
   </view>
 
+  <!-- Card Entry (Visible when progress >= 70%) -->
+  <view class="card-entry-wrapper {{showCardEntry ? 'show' : ''}}" bindtap="onGenerateCard">
+    
+    <!-- Asset Mode (Only if assets exist AND placeholder mode is off) -->
+    <block wx:if="{{!assets.config.usePlaceholders && (assets.sequences.cardProduction || assets.cardEntry.image.src)}}">
+        <view class="card-entry-content">
+            <sequence-animator 
+                width="40" 
+                height="40" 
+                sequenceConfig="{{assets.sequences.cardProduction}}" 
+                autoPlay="{{true}}"
+                wx:if="{{assets.sequences.cardProduction}}"
+            ></sequence-animator>
+            
+            <block wx:elif="{{assets.cardEntry.image.src}}">
+                <image 
+                    src="{{assets.cardEntry.image.src}}" 
+                    class="card-entry-image" 
+                    mode="aspectFit"
+                ></image>
+                <text>生成卡片</text>
+            </block>
+        </view>
+    </block>
+
+    <!-- Placeholder Mode (Fallback) -->
+    <block wx:else>
+        <view class="card-entry-content">
+            <view class="card-icon" style="background-color: {{assets.cardEntry.placeholder.color}};">
+                <view class="card-body"></view>
+            </view>
+            <text>{{assets.cardEntry.placeholder.text}}</text>
+        </view>
+    </block>
+
+    <view class="card-entry-close" catchtap="onCloseCardEntry">×</view>
+    <view class="card-entry-shine"></view>
+  </view>
+
   <!-- 2. Main Chat Area -->
   <scroll-view 
     class="chat-list" 
@@ -61,13 +100,25 @@
   <view class="cats-layer">
     <view class="ai-cat-container">
       <view class="cat-avatar ai {{isTalking ? 'talking' : ''}}">
-        <text>🐱</text>
+        <image 
+            wx:if="{{assets.avatars.cat.src}}" 
+            src="{{assets.avatars.cat.src}}" 
+            mode="aspectFit" 
+            class="avatar-image"
+        ></image>
+        <text wx:else>🐱</text>
       </view>
     </view>
 
     <view class="user-cat-container">
       <view class="cat-avatar user {{isUserTyping ? 'typing' : ''}}">
-        <text>😺</text>
+        <image 
+            wx:if="{{userCatUrl}}" 
+            src="{{userCatUrl}}" 
+            mode="aspectFit" 
+            class="avatar-image"
+        ></image>
+        <text wx:else>😺</text>
       </view>
     </view>
   </view>

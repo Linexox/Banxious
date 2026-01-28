@@ -1,8 +1,33 @@
-from app.storage.conversation_storage import get_history, save_card_cache
+from app.storage.conversation_storage import get_history, save_card_cache, get_card_cache
 from app.templates.prompt_templates import PromptTemplates
 from app.api.utils.factory import get_llm_client
 import json
 import traceback
+
+async def get_or_create_card(user_id: str):
+    """
+    Orchestrates the card generation process: checks cache first, then generates if needed.
+    """
+    try:
+        # 1. Try cache first
+        cached_json = get_card_cache(user_id)
+        if cached_json:
+            print(f"[DEBUG] Cache hit for {user_id}")
+            try:
+                return json.loads(cached_json)
+            except json.JSONDecodeError:
+                print(f"[DEBUG] Cached JSON invalid, regenerating...")
+        
+        print(f"[DEBUG] Cache miss for {user_id}, generating now...")
+        
+        # 2. Fallback to immediate generation
+        return await generate_and_cache_card_task(user_id)
+        
+    except Exception as e:
+        error_msg = f"Unexpected Error in get_or_create_card: {e}"
+        print(f"[ERROR] {error_msg}")
+        traceback.print_exc()
+        return {"error": error_msg}
 
 async def generate_and_cache_card_task(user_id: str):
     try:

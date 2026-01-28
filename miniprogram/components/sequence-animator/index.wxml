@@ -1,0 +1,15 @@
+<view class="animator-container" style="width: {{width}}rpx; height: {{height}}rpx;">
+  <!-- Placeholder View -->
+  <view wx:if="{{usePlaceholder}}" class="placeholder" style="background-color: {{placeholderColor}};">
+    <text>{{placeholderText}}</text>
+  </view>
+  
+  <!-- Canvas for Image Sequence -->
+  <canvas 
+    wx:else 
+    type="2d" 
+    id="animatorCanvas" 
+    class="animator-canvas" 
+    style="width: 100%; height: 100%;"
+  ></canvas>
+</view>

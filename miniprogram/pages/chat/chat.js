@@ -1,4 +1,5 @@
 const api = require('../../utils/api.js');
+const { ASSETS } = require('../../utils/assets.js');
 const app = getApp();
 
 Page({
@@ -11,15 +12,34 @@ Page({
     mode: 'chat', // 'chat' or 'card'
     suggestions: [],
     progress: 0,
+    showCardEntry: false,
+    cardEntryDismissed: false,
     isTalking: false,
-    isUserTyping: false
+    isUserTyping: false,
+    userCatUrl: ASSETS.avatars.user.src,
+    typeStep: 0,
+    assets: ASSETS
   },
 
   onLoad(options) {
-    this.setData({
-      userId: (app.globalData && app.globalData.userId) || 'user_' + Date.now()
-    });
+    this.initUser();
+    this.initWelcome();
+  },
+
+  initUser() {
+    const userId = (app.globalData && app.globalData.userId) || 'user_' + Date.now();
     
+    // Save to globalData
+    if (app.globalData) {
+        app.globalData.userId = userId;
+    }
+
+    this.setData({
+      userId: userId
+    });
+  },
+
+  initWelcome() {
     // Initial welcome message if needed
     if (this.data.messages.length === 0) {
       this.addMessage('assistant', '你好！我是你的绿色香蕉猫，今天感觉怎么样？');
@@ -30,8 +50,17 @@ Page({
   },
 
   onSend(e) {
-    const content = e.detail.value || e.detail;
-    if (!content || !content.trim()) return;
+    // Handle different event detail structures
+    // 1. chat-input sends { content: 'text' }
+    // 2. native input sends { value: 'text' }
+    // 3. onSuggestionTap sends 'text' directly in e.detail
+    let content = e.detail;
+    
+    if (typeof content === 'object') {
+        content = content.content || content.value || '';
+    }
+
+    if (typeof content !== 'string' || !content.trim()) return;
 
     this.addMessage('user', content);
     
@@ -50,6 +79,23 @@ Page({
       this.setData({ isUserTyping: true });
     }
     
+    // Typing Animation Logic
+    // Cycle: 1(0) -> 2(1) -> 3(2) -> 2(1) -> ...
+    const sequence = this.data.assets.avatars.user.sequences.type;
+    if (sequence && sequence.length >= 3) {
+        const map = [0, 1, 2, 1]; // Maps step to frame index
+        let step = this.data.typeStep + 1;
+        if (step >= 4) step = 0;
+        
+        const frameIndex = map[step];
+        const newUrl = sequence[frameIndex];
+        
+        this.setData({
+            typeStep: step,
+            userCatUrl: newUrl
+        });
+    }
+    
     // Clear existing timer
     if (this.typingTimer) {
       clearTimeout(this.typingTimer);
@@ -57,13 +103,23 @@ Page({
     
     // Set new timer to hide typing status after 1.5s of inactivity
     this.typingTimer = setTimeout(() => {
-      this.setData({ isUserTyping: false });
+      this.setData({ 
+          isUserTyping: false,
+          userCatUrl: this.data.assets.avatars.user.src // Reset to idle
+      });
     }, 1500);
   },
 
   onSuggestionTap(e) {
     const text = e.currentTarget.dataset.text;
-    this.onSend({ detail: text });
+    
+    // Trigger typing animation for feedback
+    this.onUserTyping();
+    
+    // Slight delay to allow animation to be seen before sending
+    setTimeout(() => {
+        this.onSend({ detail: text });
+    }, 300);
   },
 
   addMessage(role, content) {
@@ -82,12 +138,20 @@ Page({
     // Update Progress (Mock logic: +10% per turn, max 100%)
     let newProgress = this.data.progress + 10;
     if (newProgress > 100) newProgress = 100;
+    
+    // Check if we should show card entry
+    let showCardEntry = this.data.showCardEntry;
+    // DEBUG: Threshold set to 10% for testing (original: 70)
+    if (newProgress >= 10 && !this.data.cardEntryDismissed) {
+        showCardEntry = true;
+    }
 
     this.setData({
       messages: messages,
       loading: true,
       suggestions: [],
       progress: newProgress,
+      showCardEntry: showCardEntry,
       isTalking: true // Start AI talking animation
     });
 
@@ -297,8 +361,23 @@ Page({
 
   onGenerateCard() {
       // Navigate to Result Page
-      wx.navigateTo({
-          url: '/pages/result/result'
+      if (this.data.userId) {
+          wx.navigateTo({
+              url: `/pages/result/result?userId=${this.data.userId}`
+          });
+      } else {
+          console.error('Cannot navigate to result: userId is missing');
+          wx.showToast({
+              title: '用户ID丢失',
+              icon: 'none'
+          });
+      }
+  },
+
+  onCloseCardEntry() {
+      this.setData({
+          showCardEntry: false,
+          cardEntryDismissed: true
       });
   }
 });
