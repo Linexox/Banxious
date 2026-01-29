@@ -16,11 +16,39 @@ Page({
     catPos: { left: 0, top: 0 },
     catScale: 1,
     walkingCatUrl: ASSETS.avatars.cat.src,
-    walkStep: 0
+    walkStep: 0,
+
+    // Idle Animation for all cats
+    idleCatUrl: ASSETS.avatars.cat.src,
+    idleCatSequence: ASSETS.avatars.cat.sequences.run,
+    idleStep: 1 // Default to middle frame (stand)
   },
 
   onLoad() {
-    // Optional: Pre-select the middle cat? Or none.
+    this.startIdleAnimation();
+  },
+
+  startIdleAnimation() {
+    // Animate all cats in place to look alive (subtle walk)
+    // Frame cycle: 1(0) -> 2(1) -> 3(2) -> 2(1)
+    
+    if (this.idleInterval) clearInterval(this.idleInterval);
+
+    this.idleInterval = setInterval(() => {
+        if (this.data.isAnimating) return; // Pause idle anim when walking anim starts
+
+        const map = [0, 1, 2, 1];
+        let step = this.data.idleStep + 1;
+        if (step >= 4) step = 0;
+        
+        const seq = this.data.idleCatSequence;
+        if (seq && seq.length >= 3) {
+            this.setData({
+                idleStep: step,
+                idleCatUrl: seq[map[step]]
+            });
+        }
+    }, 200); // 5fps for idle walk
   },
 
   onSelectCat(e) {
@@ -126,6 +154,9 @@ Page({
   onUnload() {
       if (this.walkInterval) {
           clearInterval(this.walkInterval);
+      }
+      if (this.idleInterval) {
+          clearInterval(this.idleInterval);
       }
   }
 })

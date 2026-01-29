@@ -94,6 +94,7 @@ page {
   justify-content: space-between;
   box-shadow: 0 0 40rpx rgba(0, 255, 204, 0.2);
   border: 4rpx solid #00FFCC;
+  font-family: sans-serif; /* Default font for content */
 }
 
 /* Front Face */
@@ -120,6 +121,7 @@ page {
   border-radius: 10rpx;
   font-weight: bold;
   font-size: 28rpx;
+  font-family: 'XiangJiaoFont'; /* Specific font for tag */
 }
 
 .toggle-btn {
@@ -151,12 +153,14 @@ page {
 
 /* Front Content */
 .encouragement {
-  font-size: 40rpx;
+  font-size: 52rpx; /* Increased from 40rpx (approx +30%) */
   color: #333;
-  font-weight: bold;
+  font-weight: normal; /* Removed bold to prevent stroke overlap on custom font */
   text-align: center;
   line-height: 1.4;
   margin-bottom: 40rpx;
+  font-family: 'XiangJiaoFont', sans-serif; /* Specific font for main title/encouragement with fallback */
+  letter-spacing: 2rpx; /* Added spacing for better readability */
 }
 
 .hint {

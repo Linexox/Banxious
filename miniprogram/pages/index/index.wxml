@@ -10,11 +10,15 @@
         bindtap="onSelectCat" 
         data-id="{{item.id}}"
       >
-        <!-- Placeholder for Cat Image -->
-        <view class="cat-placeholder" style="background-color: {{item.color}};">
-          <text class="cat-face">🐱</text>
+        <!-- Dynamic Cat Image (Idle Animation) -->
+        <view class="cat-placeholder" style="background-color: transparent;">
+             <image 
+                class="cat-image" 
+                src="{{idleCatUrl}}" 
+                mode="aspectFit"
+             ></image>
         </view>
-        <!-- <image class="cat-image" src="{{item.image}}" mode="aspectFit"></image> -->
+        <!-- <text class="cat-face">🐱</text> -->
       </view>
     </block>
   </view>

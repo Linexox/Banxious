@@ -1,4 +1,8 @@
-/** app.wxss */
+/** app.wxss **/
+/* Note: @font-face via local path is not supported in Miniprogram wxss on some platforms.
+   We will load it via wx.loadFontFace in app.js for better compatibility.
+*/
+
 .container {
   height: 100%;
   display: flex;
@@ -7,4 +11,5 @@
   justify-content: space-between;
   padding: 200rpx 0;
   box-sizing: border-box;
+  font-family: 'XiangJiaoFont', sans-serif; /* Apply globally */
 } 

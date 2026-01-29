@@ -47,6 +47,7 @@ Page({
   // -------------------------------------------------------------------------
 
   onLoad(options) {
+    console.log('[Result] onLoad with options:', options);
     const userId = options.userId || (app.globalData && app.globalData.userId);
     
     if (userId) {
@@ -108,9 +109,24 @@ Page({
     });
 
     try {
+      console.log('[Result] Requesting card generation for user:', this.data.userId);
       const res = await api.generateCard(this.data.userId);
+      console.log('[Result] Card data received:', res);
+
+      // Robust data handling: Check if data is wrapped
+      let validData = res;
+      if (!res.mood_tag && res.data && res.data.mood_tag) {
+          console.warn('[Result] Data was wrapped in .data property, unwrapping...');
+          validData = res.data;
+      }
+
+      if (!validData || !validData.mood_tag || !validData.encouragement) {
+           console.error('[Result] Invalid card data structure:', validData);
+           throw new Error('返回数据格式错误: 缺少关键字段');
+       }
+
       this.setData({
-        cardData: res,
+        cardData: validData,
         loading: false
       });
     } catch (err) {
@@ -1332,8 +1348,21 @@ Page({
   },
 
   // -------------------------------------------------------------------------
-  // Canvas Helpers
-  // -------------------------------------------------------------------------
+  onUnload() {
+    if (this.animState.rafId) {
+      if (this.animationCanvas) {
+          this.animationCanvas.cancelAnimationFrame(this.animState.rafId);
+      }
+    }
+    
+    // Explicitly reset interaction mode to prevent lingering state
+    this.setData({
+        destroyed: false,
+        isDestroying: false,
+        interactionMode: 'none',
+        cardData: null // Clear data to force fresh render next time
+    });
+  },
 
   drawRoundRect(ctx, x, y, width, height, radius) {
     ctx.beginPath();
@@ -1402,7 +1431,7 @@ Page({
       // WXSS: padding: 10rpx 24rpx, border: 1rpx solid #00FFCC, radius: 30rpx
       // Font: 24rpx bold #1B262C, BG: rgba(0, 255, 204, 0.3)
       const toggleText = this.data.showProfessionalAnalysis ? '返回简略' : '深度分析';
-      ctx.font = `bold ${rpx(24)}px sans-serif`;
+      ctx.font = `bold ${rpx(24)}px sans-serif`; // Default sans-serif for toggle btn
       const toggleMetrics = ctx.measureText(toggleText);
       const togglePaddingX = rpx(24);
       const toggleW = toggleMetrics.width + togglePaddingX * 2;
@@ -1428,7 +1457,9 @@ Page({
       // WXSS: padding: 10rpx 20rpx, BG: #00FFCC, radius: 10rpx
       // Font: 28rpx bold #1B262C
       const tagText = this.data.showProfessionalAnalysis ? '专业解读' : 'Mood Lab 建议';
-      ctx.font = `bold ${rpx(28)}px sans-serif`;
+      // Use Custom Font for Tag if loaded, fallback to sans-serif
+      // Canvas font stack works like CSS: 'size family, family'
+      ctx.font = `bold ${rpx(28)}px "XiangJiaoFont", sans-serif`; 
       const tagMetrics = ctx.measureText(tagText);
       const tagPaddingX = rpx(20);
       const tagW = tagMetrics.width + tagPaddingX * 2;
@@ -1537,7 +1568,7 @@ Page({
 
       // 1. Tag (Top Right)
       const tagText = cardData.mood_tag || '焦虑';
-      ctx.font = `bold ${rpx(28)}px sans-serif`;
+      ctx.font = `bold ${rpx(28)}px "XiangJiaoFont", sans-serif`;
       const tagMetrics = ctx.measureText(tagText);
       const tagPaddingX = rpx(20);
       const tagPaddingY = rpx(10);
@@ -1557,14 +1588,14 @@ Page({
       ctx.fillText(tagText, tagX + tagW / 2, tagY + tagH / 2);
 
       // 2. Encouragement (Center)
-      // Font: 40rpx bold #333, line-height 1.4
+      // Font: 52rpx normal #333, line-height 1.4, Family: XiangJiaoFont
       const mainText = cardData.encouragement || '暂无内容';
-      ctx.font = `bold ${rpx(40)}px sans-serif`;
+      ctx.font = `${rpx(52)}px "XiangJiaoFont", sans-serif`;
       ctx.fillStyle = '#333333';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const lineHeight = rpx(40) * 1.4;
+      const lineHeight = rpx(52) * 1.4;
       // Calculate total height of text to center it vertically
       const maxW = width - padding * 2;
       const lines = this.getWrappedLines(ctx, mainText, maxW);
