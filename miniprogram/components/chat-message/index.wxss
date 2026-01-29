@@ -39,3 +39,13 @@
   border: 1rpx solid #eee;
   box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
 }
+
+.bold-text {
+  font-weight: bold;
+  color: #000;
+}
+
+.line-break {
+  height: 10rpx; /* Small spacing between paragraphs */
+  width: 100%;
+}

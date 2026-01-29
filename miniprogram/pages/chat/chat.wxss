@@ -67,10 +67,82 @@ page {
   transition: width 0.5s ease;
 }
 
+/* --- Mode Switch --- */
+.mode-switch-container {
+  position: absolute;
+  top: 100rpx; /* Below progress bar */
+  right: 40rpx;
+  width: 180rpx;
+  height: 60rpx;
+  z-index: 150; /* Above chat list */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mode-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 30rpx;
+  border: 1rpx solid rgba(0,0,0,0.1);
+  box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.05);
+}
+
+.mode-slider {
+  position: absolute;
+  top: 4rpx;
+  width: 86rpx; /* Half width - padding */
+  height: 52rpx;
+  background-color: #4CAF50;
+  border-radius: 26rpx;
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  box-shadow: 0 2rpx 4rpx rgba(0,0,0,0.2);
+}
+
+.mode-slider.left {
+  left: 4rpx;
+  background-color: #FFEB3B; /* Humorous color */
+}
+
+.mode-slider.right {
+  left: 90rpx; /* 180 - 86 - 4 */
+  background-color: #4CAF50; /* Professional color */
+}
+
+.mode-labels {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16rpx;
+  box-sizing: border-box;
+}
+
+.mode-text {
+  font-size: 24rpx;
+  color: #888;
+  font-weight: 500;
+  transition: color 0.3s;
+  flex: 1;
+  text-align: center;
+}
+
+.mode-text.active {
+  color: #333; /* Darker for better contrast on yellow/green */
+  font-weight: bold;
+}
+
 /* --- Chat Area --- */
 .chat-list {
   position: absolute;
-  top: 100rpx; /* Below progress bar */
+  top: 170rpx; /* Adjusted to make room for switch (100 + 60 + 10) */
   left: 0;
   right: 0;
   bottom: 25vh; /* Above cats (head at 1/4 screen) */
@@ -97,8 +169,8 @@ page {
 
 .user-typing-layer {
   position: absolute;
-  right: 20rpx;
-  bottom: calc(160rpx + env(safe-area-inset-bottom) + 20rpx);
+  right: 40rpx; /* Moved left 10px (approx 20rpx) from 20rpx */
+  bottom: calc(160rpx + env(safe-area-inset-bottom) + 30rpx); /* Moved up 5px (approx 10rpx) from 20rpx */
   z-index: 120;
   animation: floatUp 0.3s ease-out;
 }
@@ -157,12 +229,16 @@ page {
   display: flex;
   align-items: flex-end;
   pointer-events: none; 
+  /* Flip horizontally and move up 50px (Result of moving down 150px from previous -200px) */
+  transform: scaleX(-1) translateY(-50px); 
+  transform-origin: center bottom; /* Ensure flip happens around center */
+  transition: transform 0.3s ease-in-out;
 }
 
 .user-cat-container {
   position: absolute;
   right: 0;
-  bottom: 0;
+  bottom: 15px; /* Moved up 15px as requested */
   width: 25vh; 
   height: 25vh;
   display: flex;

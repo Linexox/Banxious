@@ -12,6 +12,17 @@
     <view class="progress-icon-placeholder right" style="background-color: #FFEB3B"></view>
   </view>
 
+  <!-- Prompt Mode Switch -->
+  <view class="mode-switch-container" bindtap="onToggleMode">
+    <view class="mode-bg">
+        <view class="mode-slider {{mode === 'professional' ? 'right' : 'left'}}"></view>
+    </view>
+    <view class="mode-labels">
+        <text class="mode-text {{mode === 'chat' ? 'active' : ''}}">幽默</text>
+        <text class="mode-text {{mode === 'professional' ? 'active' : ''}}">专业</text>
+    </view>
+  </view>
+
   <!-- Card Entry (Visible when progress >= 70%) -->
   <view class="card-entry-wrapper {{showCardEntry ? 'show' : ''}}" bindtap="onGenerateCard">
     

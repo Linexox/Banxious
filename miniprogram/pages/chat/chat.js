@@ -23,7 +23,38 @@ Page({
 
   onLoad(options) {
     this.initUser();
+    this.initMode();
     this.initWelcome();
+  },
+
+  initMode() {
+    try {
+        const mode = wx.getStorageSync('chatMode') || 'chat';
+        this.setData({ mode });
+    } catch (e) {
+        console.error('Failed to load mode preference', e);
+    }
+  },
+
+  onToggleMode() {
+    const newMode = this.data.mode === 'chat' ? 'professional' : 'chat';
+    
+    // Add transition effect feedback if needed, but the switch UI will animate
+    this.setData({ mode: newMode });
+    
+    // Persist preference
+    try {
+        wx.setStorageSync('chatMode', newMode);
+        
+        // Optional: Show toast to confirm switch
+        wx.showToast({
+            title: newMode === 'chat' ? '已切换：幽默模式' : '已切换：专业模式',
+            icon: 'none',
+            duration: 1500
+        });
+    } catch (e) {
+        console.error('Failed to save mode preference', e);
+    }
   },
 
   initUser() {
@@ -161,6 +192,7 @@ Page({
     this.streamBuffer = '';
     this.isTyping = false;
     this.networkFinished = false;
+    this.pendingBuffer = ''; // Initialize pending buffer to avoid "undefined" prefix
 
     api.chatStream(this.data.userId, content, this.data.mode, {
       onChunk: (text) => {
