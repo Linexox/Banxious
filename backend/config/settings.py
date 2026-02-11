@@ -10,7 +10,7 @@ class ZhiPuSettings: # 'zhipu'
     PROJECT_NAME: str = "GreenBanana"
     
     # LLM Configuration
-    ZHIPU_API_KEY: str = os.getenv("ZHIPU_API_KEY", "eceb5107c89148938cf8ae35b4d1a0ba.MOBrNxXFHSjxnEV6")
+    ZHIPU_API_KEY: str = os.getenv("ZHIPU_API_KEY", "00000000000000000000000000000000")
     LLM_PROVIDER: str = "zhipu"
     LLM_MODEL: str = os.getenv("ZHIPU_MODEL", "glm-4.7")
     
@@ -21,7 +21,7 @@ class DeepseekR1Settings: # 'deepseek'
     PROJECT_NAME: str = "GreenBanana"
     
     # LLM Configuration
-    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "sk-b642fdd51792455eb03929986cb3ee2e")
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "sk-00000000000000000000000000000000")
     LLM_PROVIDER: str = "deepseek"
     LLM_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
     
